@@ -1,11 +1,31 @@
 import { useAppContext } from '../../context/AppContext';
-import type { SolarModule, CellType, CellFormat, GlassType, BacksheetType, FrameType, CellLayout } from '../../models/solarModule';
+import type {
+  SolarModule,
+  CellType,
+  CellFormat,
+  GlassType,
+  BacksheetType,
+  FrameType,
+  CellLayout,
+  ModuleColor,
+  RibbonColor,
+  CrossConnectorColor,
+  CellGeometryId,
+} from '../../models/solarModule';
+import {
+  CELL_GEOMETRIES,
+  MODULE_COLOR_PALETTE,
+  getCellGeometry,
+} from '../../models/solarModule';
 
 const CELL_TYPES: CellType[] = ['mono-PERC', 'mono-HJT', 'mono-TOPCon', 'poly', 'custom'];
 const CELL_FORMATS: CellFormat[] = ['M6-166mm', 'M10-182mm', 'M12-210mm', 'custom'];
 const GLASS_TYPES: GlassType[] = ['tempered-3.2mm', 'tempered-2.0mm', 'anti-glare-3.2mm', 'custom'];
 const BACKSHEET_TYPES: BacksheetType[] = ['glass-glass', 'TPT', 'TPE', 'transparent', 'custom'];
 const FRAME_TYPES: FrameType[] = ['aluminium-silver', 'aluminium-black', 'frameless', 'custom'];
+const MODULE_COLORS: ModuleColor[] = ['morpho-yellow', 'morpho-green', 'morpho-terracota', 'printed-color', 'transparent', 'black'];
+const RIBBON_COLORS: RibbonColor[] = ['silver', 'black'];
+const CROSS_CONNECTOR_COLORS: CrossConnectorColor[] = ['silver', 'black'];
 
 function NumberInput({
   label,
@@ -74,6 +94,7 @@ function SelectInput<T extends string>({
 function ModuleForm({ module }: { module: SolarModule }) {
   const { updateModule } = useAppContext();
   const id = module.id;
+  const geom = getCellGeometry(module.cellGeometryId);
 
   const update = (updates: Partial<SolarModule>) => updateModule(id, updates);
   const updateLayout = (updates: Partial<CellLayout>) =>
@@ -81,7 +102,7 @@ function ModuleForm({ module }: { module: SolarModule }) {
 
   return (
     <div className="space-y-4">
-      {/* Name & Color */}
+      {/* Name & Facade Color */}
       <div className="grid grid-cols-[1fr_auto] gap-2">
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-slate-500">Module Name</span>
@@ -93,7 +114,7 @@ function ModuleForm({ module }: { module: SolarModule }) {
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-slate-500">Color</span>
+          <span className="text-xs font-medium text-slate-500">Facade</span>
           <input
             type="color"
             className="h-[30px] w-10 cursor-pointer rounded border border-slate-300"
@@ -102,6 +123,69 @@ function ModuleForm({ module }: { module: SolarModule }) {
           />
         </label>
       </div>
+
+      {/* Module Color (SOLARCOLOR) */}
+      <fieldset className="rounded border border-slate-200 p-2">
+        <legend className="px-1 text-xs font-semibold text-slate-600">Module Color (SOLARCOLOR)</legend>
+        <div className="grid grid-cols-3 gap-1.5">
+          {MODULE_COLORS.map((mc) => {
+            const def = MODULE_COLOR_PALETTE[mc];
+            const isSelected = module.moduleColor === mc;
+            return (
+              <button
+                key={mc}
+                onClick={() => update({ moduleColor: mc })}
+                className={`flex items-center gap-1.5 rounded border px-2 py-1.5 text-left text-xs transition-all ${
+                  isSelected
+                    ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
+                    : 'border-slate-200 hover:border-slate-400'
+                }`}
+              >
+                <span
+                  className="inline-block h-4 w-4 rounded-sm border border-slate-300 flex-shrink-0"
+                  style={{ backgroundColor: def.hex }}
+                />
+                <span className="leading-tight">{def.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      {/* Cell Geometry (from PDF) */}
+      <fieldset className="rounded border border-slate-200 p-2">
+        <legend className="px-1 text-xs font-semibold text-slate-600">Cell Geometry</legend>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-slate-500">Cell Type (from Megasol spec)</span>
+          <select
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+            value={module.cellGeometryId}
+            onChange={(e) => update({ cellGeometryId: e.target.value as CellGeometryId })}
+          >
+            {CELL_GEOMETRIES.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
+          <div>
+            Cell: <span className="font-medium text-slate-700">{geom.cellWidthMm} x {geom.cellHeightMm} mm</span>
+          </div>
+          <div>
+            Half-cut: <span className="font-medium text-slate-700">{geom.halfCut ? 'Yes' : 'No'}</span>
+          </div>
+          <div>
+            Ribbons: <span className="font-medium text-slate-700">
+              {geom.rearContact ? 'Rear contact (none visible)' : `${geom.defaultRibbonCount} per cell`}
+            </span>
+          </div>
+          <div>
+            Corners: <span className="font-medium text-slate-700">{geom.roundedCorners ? 'Rounded' : 'Square'}</span>
+          </div>
+        </div>
+      </fieldset>
 
       {/* Dimensions */}
       <fieldset className="rounded border border-slate-200 p-2">
@@ -116,9 +200,8 @@ function ModuleForm({ module }: { module: SolarModule }) {
       <fieldset className="rounded border border-slate-200 p-2">
         <legend className="px-1 text-xs font-semibold text-slate-600">Cell Configuration</legend>
         <div className="grid grid-cols-2 gap-2">
-          <SelectInput label="Cell Type" value={module.cellType} options={CELL_TYPES} onChange={(v) => update({ cellType: v })} />
+          <SelectInput label="Cell Technology" value={module.cellType} options={CELL_TYPES} onChange={(v) => update({ cellType: v })} />
           <SelectInput label="Cell Format" value={module.cellFormat} options={CELL_FORMATS} onChange={(v) => update({ cellFormat: v })} />
-          <NumberInput label="Cell Size" value={module.cellSizeMm} unit="mm" min={50} max={250} onChange={(v) => update({ cellSizeMm: v })} />
           <NumberInput label="Power" value={module.powerWp} unit="Wp" min={0} onChange={(v) => update({ powerWp: v })} />
         </div>
       </fieldset>
@@ -138,8 +221,10 @@ function ModuleForm({ module }: { module: SolarModule }) {
             checked={module.cellLayout.halfCut}
             onChange={(e) => updateLayout({ halfCut: e.target.checked })}
             className="rounded"
+            disabled={geom.halfCut} // locked if geometry dictates half-cut
           />
           Half-cut cells
+          {geom.halfCut && <span className="text-xs text-slate-400">(set by cell geometry)</span>}
         </label>
         <div className="mt-1 text-xs text-slate-400">
           Total cells: <span className="font-semibold text-slate-600">{module.totalCells}</span>
@@ -157,6 +242,38 @@ function ModuleForm({ module }: { module: SolarModule }) {
         </div>
       </fieldset>
 
+      {/* Ribbons & Cross Connectors */}
+      <fieldset className="rounded border border-slate-200 p-2">
+        <legend className="px-1 text-xs font-semibold text-slate-600">Ribbons & Cross Connectors</legend>
+        <div className="grid grid-cols-2 gap-2">
+          <NumberInput label="Ribbon Width" value={module.ribbonWidthMm} unit="mm" min={0.1} step={0.1} onChange={(v) => update({ ribbonWidthMm: v })} />
+          <NumberInput
+            label="Ribbons/Cell"
+            value={module.ribbonCount}
+            min={0}
+            max={12}
+            onChange={(v) => update({ ribbonCount: v })}
+          />
+          <SelectInput
+            label="Ribbon Color"
+            value={module.ribbonColor}
+            options={RIBBON_COLORS}
+            onChange={(v) => update({ ribbonColor: v })}
+          />
+          <SelectInput
+            label="Cross Connector Color"
+            value={module.crossConnectorColor}
+            options={CROSS_CONNECTOR_COLORS}
+            onChange={(v) => update({ crossConnectorColor: v })}
+          />
+        </div>
+        {geom.rearContact && (
+          <div className="mt-2 text-xs text-amber-600 bg-amber-50 rounded px-2 py-1">
+            Rear contact cells: ribbons not visible from front side
+          </div>
+        )}
+      </fieldset>
+
       {/* Components */}
       <fieldset className="rounded border border-slate-200 p-2">
         <legend className="px-1 text-xs font-semibold text-slate-600">Components</legend>
@@ -165,8 +282,6 @@ function ModuleForm({ module }: { module: SolarModule }) {
           <SelectInput label="Backsheet" value={module.backsheetType} options={BACKSHEET_TYPES} onChange={(v) => update({ backsheetType: v })} />
           <SelectInput label="Frame" value={module.frameType} options={FRAME_TYPES} onChange={(v) => update({ frameType: v })} />
           <SelectInput label="Encapsulant" value={module.encapsulantType} options={['EVA', 'POE', 'EPE']} onChange={(v) => update({ encapsulantType: v as 'EVA' | 'POE' | 'EPE' })} />
-          <NumberInput label="Ribbon Width" value={module.ribbonWidthMm} unit="mm" min={0.1} step={0.1} onChange={(v) => update({ ribbonWidthMm: v })} />
-          <NumberInput label="Ribbons/Cell" value={module.ribbonCount} min={1} max={12} onChange={(v) => update({ ribbonCount: v })} />
           <NumberInput label="Junction Boxes" value={module.junctionBoxCount} min={1} max={4} onChange={(v) => update({ junctionBoxCount: v })} />
         </div>
       </fieldset>

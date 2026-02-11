@@ -62,7 +62,7 @@ export default function CostBreakdown() {
               <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-30} textAnchor="end" height={60} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip
-                formatter={(value: number) => [`${value.toFixed(2)} EUR`, 'Cost']}
+                formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)} EUR`, 'Cost']}
                 contentStyle={{ fontSize: 12 }}
               />
               <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
@@ -86,7 +86,7 @@ export default function CostBreakdown() {
                 cx="50%"
                 cy="50%"
                 outerRadius={80}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                 labelLine={{ strokeWidth: 1 }}
                 fontSize={9}
               >
@@ -94,7 +94,7 @@ export default function CostBreakdown() {
                   <Cell key={index} fill={entry.fill} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value: number) => [`${value.toFixed(2)} EUR`]} contentStyle={{ fontSize: 12 }} />
+              <Tooltip formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)} EUR`]} contentStyle={{ fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
             </PieChart>
           </ResponsiveContainer>
@@ -113,17 +113,29 @@ export default function CostBreakdown() {
             </thead>
             <tbody>
               {sectionCosts.map((sc, i) => (
-                <tr key={sc.sectionId} className="border-b border-slate-100">
-                  <td className="py-1 flex items-center gap-1">
-                    <span
-                      className="inline-block h-2 w-2 rounded-full"
-                      style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                    />
-                    {sc.sectionName}
-                  </td>
-                  <td className="py-1 text-right font-medium">{sc.cost.toFixed(2)}</td>
-                  <td className="py-1 text-right text-slate-400">{sc.percentage}%</td>
-                </tr>
+                <>
+                  <tr key={sc.sectionId} className="border-b border-slate-100">
+                    <td className="py-1 flex items-center gap-1">
+                      <span
+                        className="inline-block h-2 w-2 rounded-full"
+                        style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                      />
+                      {sc.sectionName}
+                    </td>
+                    <td className="py-1 text-right font-medium">{sc.cost.toFixed(2)}</td>
+                    <td className="py-1 text-right text-slate-400">{sc.percentage}%</td>
+                  </tr>
+                  {sc.subcategoryCosts.length > 0 &&
+                    sc.subcategoryCosts.map((sub) => (
+                      <tr key={sub.subcategoryId} className="border-b border-slate-50">
+                        <td className="py-0.5 pl-5 text-slate-400">{sub.subcategoryName}</td>
+                        <td className="py-0.5 text-right text-slate-400">{sub.cost.toFixed(2)}</td>
+                        <td className="py-0.5 text-right text-slate-300">
+                          {sc.cost > 0 ? ((sub.cost / sc.cost) * 100).toFixed(0) : 0}%
+                        </td>
+                      </tr>
+                    ))}
+                </>
               ))}
               <tr className="font-bold">
                 <td className="py-1">Total</td>

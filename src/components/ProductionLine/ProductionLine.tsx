@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import type { SubcategoryCostModel } from '../../models/production';
 
 const SECTION_COLORS: Record<string, string> = {
   planning: '#3b82f6',
@@ -6,12 +8,44 @@ const SECTION_COLORS: Record<string, string> = {
   'string-production': '#22c55e',
   frontend: '#06b6d4',
   backend: '#a855f7',
-  packaging: '#f97316',
+  'packaging-section': '#f97316',
   shipment: '#ef4444',
 };
 
+function SubcategoryCostInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-0.5">
+      <span className="text-[10px] text-slate-400">{label}</span>
+      <input
+        type="number"
+        step={0.01}
+        min={0}
+        className="w-full rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs focus:border-blue-500 focus:outline-none"
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+    </label>
+  );
+}
+
 export default function ProductionLine() {
-  const { sections, sectionCosts, selectedModule, totalCost } = useAppContext();
+  const { sections, sectionCosts, selectedModule, totalCost, updateSubcategoryCost } = useAppContext();
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    frontend: true,
+    backend: true,
+  });
+
+  const toggleSection = (id: string) => {
+    setExpandedSections((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -82,12 +116,19 @@ export default function ProductionLine() {
             <div className="mt-4 space-y-2">
               {sections.map((section) => {
                 const cost = sectionCosts.find((sc) => sc.sectionId === section.id);
+                const hasSubcategories = section.subcategories.length > 0;
+                const isExpanded = expandedSections[section.id] ?? false;
+
                 return (
                   <div
                     key={section.id}
-                    className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
+                    className="rounded-lg border border-slate-200 bg-white shadow-sm"
                   >
-                    <div className="flex items-start justify-between">
+                    {/* Section header */}
+                    <div
+                      className={`flex items-start justify-between p-3 ${hasSubcategories ? 'cursor-pointer hover:bg-slate-50' : ''}`}
+                      onClick={() => hasSubcategories && toggleSection(section.id)}
+                    >
                       <div className="flex items-center gap-2">
                         <div
                           className="flex h-8 w-8 items-center justify-center rounded-lg text-sm"
@@ -96,7 +137,14 @@ export default function ProductionLine() {
                           {section.icon}
                         </div>
                         <div>
-                          <h4 className="text-sm font-semibold text-slate-700">{section.name}</h4>
+                          <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-1">
+                            {section.name}
+                            {hasSubcategories && (
+                              <span className="text-xs text-slate-400">
+                                {isExpanded ? '▼' : '▶'} {section.subcategories.length} steps
+                              </span>
+                            )}
+                          </h4>
                           <p className="text-xs text-slate-400">{section.description}</p>
                         </div>
                       </div>
@@ -108,32 +156,65 @@ export default function ProductionLine() {
                       )}
                     </div>
 
-                    {/* Cost breakdown within section */}
-                    <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-500">
-                      <div>
-                        Base: <span className="font-medium text-slate-600">{section.baseCostEur.toFixed(2)} EUR</span>
-                      </div>
-                      <div>
-                        Per cell: <span className="font-medium text-slate-600">{section.perCellCostEur.toFixed(2)} EUR</span>
-                      </div>
-                      <div>
-                        Per m2: <span className="font-medium text-slate-600">{section.perM2CostEur.toFixed(2)} EUR</span>
-                      </div>
-                    </div>
-
-                    {/* Steps placeholder */}
-                    {section.steps.length > 0 && (
-                      <div className="mt-2 border-t border-slate-100 pt-2">
-                        {section.steps.map((step) => (
-                          <div key={step.id} className="text-xs text-slate-500 py-0.5">
-                            - {step.name}
+                    {/* Section-level cost breakdown (for sections without subcategories) */}
+                    {!hasSubcategories && (
+                      <div className="border-t border-slate-100 px-3 pb-3 pt-2">
+                        <div className="grid grid-cols-3 gap-2 text-xs text-slate-500">
+                          <div>
+                            Base: <span className="font-medium text-slate-600">{section.baseCostEur.toFixed(2)} EUR</span>
                           </div>
-                        ))}
+                          <div>
+                            Per cell: <span className="font-medium text-slate-600">{section.perCellCostEur.toFixed(2)} EUR</span>
+                          </div>
+                          <div>
+                            Per m2: <span className="font-medium text-slate-600">{section.perM2CostEur.toFixed(2)} EUR</span>
+                          </div>
+                        </div>
                       </div>
                     )}
-                    {section.steps.length === 0 && (
-                      <div className="mt-2 text-[10px] text-slate-300 italic">
-                        Sub-steps will be added later
+
+                    {/* Subcategories (expandable) */}
+                    {hasSubcategories && isExpanded && (
+                      <div className="border-t border-slate-100">
+                        {section.subcategories.map((sub, idx) => {
+                          const subCost = cost?.subcategoryCosts.find((sc) => sc.subcategoryId === sub.id);
+                          return (
+                            <div
+                              key={sub.id}
+                              className={`px-3 py-2 ${idx < section.subcategories.length - 1 ? 'border-b border-slate-50' : ''}`}
+                            >
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-xs font-medium text-slate-600">{sub.name}</span>
+                                {subCost && (
+                                  <span className="text-xs font-bold text-slate-700">{subCost.cost.toFixed(2)} EUR</span>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-3 gap-2">
+                                <SubcategoryCostInput
+                                  label="Base (EUR)"
+                                  value={sub.costModel.baseCostEur}
+                                  onChange={(v) =>
+                                    updateSubcategoryCost(section.id, sub.id, { baseCostEur: v } as Partial<SubcategoryCostModel>)
+                                  }
+                                />
+                                <SubcategoryCostInput
+                                  label="Per cell (EUR)"
+                                  value={sub.costModel.perCellCostEur}
+                                  onChange={(v) =>
+                                    updateSubcategoryCost(section.id, sub.id, { perCellCostEur: v } as Partial<SubcategoryCostModel>)
+                                  }
+                                />
+                                <SubcategoryCostInput
+                                  label="Per m2 (EUR)"
+                                  value={sub.costModel.perM2CostEur}
+                                  onChange={(v) =>
+                                    updateSubcategoryCost(section.id, sub.id, { perM2CostEur: v } as Partial<SubcategoryCostModel>)
+                                  }
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

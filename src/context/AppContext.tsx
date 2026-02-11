@@ -1,8 +1,15 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { type SolarModule, createDefaultModule } from '../models/solarModule';
+import { type SolarModule, createDefaultModule, getCellGeometry } from '../models/solarModule';
 import { type FacadeConfig, createDefaultFacade } from '../models/facade';
-import { DEFAULT_SECTIONS, calculateCostsForModule, type ProductionSection, type SectionCost } from '../models/production';
+import {
+  DEFAULT_SECTIONS,
+  calculateCostsForModule,
+  type ProductionSection,
+  type SectionCost,
+  type ProductionSubcategory,
+  type SubcategoryCostModel,
+} from '../models/production';
 
 interface AppState {
   modules: SolarModule[];
@@ -23,6 +30,7 @@ interface AppActions {
   updateFacade: (updates: Partial<FacadeConfig>) => void;
   assignModuleToSlot: (row: number, col: number, moduleId: string) => void;
   updateSection: (id: string, updates: Partial<ProductionSection>) => void;
+  updateSubcategoryCost: (sectionId: string, subcategoryId: string, updates: Partial<SubcategoryCostModel>) => void;
 }
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
@@ -40,9 +48,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Calculate costs for selected module
   const { sectionCosts, totalCost } = (() => {
-    if (!selectedModule) return { sectionCosts: [], totalCost: 0 };
+    if (!selectedModule) return { sectionCosts: [] as SectionCost[], totalCost: 0 };
     const areaM2 = (selectedModule.width * selectedModule.height) / 1_000_000;
-    return calculateCostsForModule(sections, selectedModule.totalCells, areaM2);
+    return calculateCostsForModule(sections, selectedModule.totalCells, areaM2, selectedModule);
   })();
 
   const addModule = useCallback(() => {
@@ -69,6 +77,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (updates.cellLayout) {
           const layout = updates.cellLayout;
           updated.totalCells = layout.rows * layout.columns * (layout.halfCut ? 2 : 1);
+        }
+        // If cell geometry changed, update related fields
+        if (updates.cellGeometryId) {
+          const geom = getCellGeometry(updates.cellGeometryId);
+          updated.cellSizeMm = geom.cellWidthMm;
+          updated.ribbonCount = geom.defaultRibbonCount;
+          updated.cellLayout = {
+            ...updated.cellLayout,
+            halfCut: geom.halfCut,
+          };
+          updated.totalCells = updated.cellLayout.rows * updated.cellLayout.columns * (geom.halfCut ? 2 : 1);
         }
         return updated;
       })
@@ -112,6 +131,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
   }, []);
 
+  const updateSubcategoryCost = useCallback(
+    (sectionId: string, subcategoryId: string, updates: Partial<SubcategoryCostModel>) => {
+      setSections((prev) =>
+        prev.map((s) => {
+          if (s.id !== sectionId) return s;
+          return {
+            ...s,
+            subcategories: s.subcategories.map((sub: ProductionSubcategory) =>
+              sub.id === subcategoryId
+                ? { ...sub, costModel: { ...sub.costModel, ...updates } }
+                : sub
+            ),
+          };
+        })
+      );
+    },
+    []
+  );
+
   return (
     <AppContext.Provider
       value={{
@@ -129,6 +167,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateFacade,
         assignModuleToSlot,
         updateSection,
+        updateSubcategoryCost,
       }}
     >
       {children}

@@ -3,9 +3,6 @@ import { useAppContext } from '../../context/AppContext';
 export default function FacadeView() {
   const { facade, modules, selectedModuleId, selectModule, assignModuleToSlot, updateFacade } = useAppContext();
 
-  const slotWidth = 100 / facade.columns;
-  const slotHeight = 100 / facade.rows;
-
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">

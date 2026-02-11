@@ -1,8 +1,12 @@
 import { useAppContext } from '../../context/AppContext';
 import type { SolarModule } from '../../models/solarModule';
+import { MODULE_COLOR_PALETTE, getCellGeometry } from '../../models/solarModule';
 
 function ModuleSVG({ module }: { module: SolarModule }) {
-  const { width, height, cellLayout, cellSizeMm, marginTop, marginBottom, marginLeft, marginRight } = module;
+  const { width, height, cellLayout, marginTop, marginBottom, marginLeft, marginRight } = module;
+
+  const geom = getCellGeometry(module.cellGeometryId);
+  const colorDef = MODULE_COLOR_PALETTE[module.moduleColor];
 
   // Scale factor: fit into a viewBox that represents the real mm dimensions
   const viewBox = `0 0 ${width} ${height}`;
@@ -14,13 +18,13 @@ function ModuleSVG({ module }: { module: SolarModule }) {
   const totalRows = cellLayout.halfCut ? cellLayout.rows * 2 : cellLayout.rows;
   const totalCols = cellLayout.columns;
 
-  // Cell size accounting for spacing
+  // Use geometry-specific cell dimensions
   const effectiveCellW = Math.min(
-    cellSizeMm,
+    geom.cellWidthMm,
     (activeWidth - (totalCols - 1) * cellLayout.cellSpacingX) / totalCols
   );
   const effectiveCellH = Math.min(
-    cellLayout.halfCut ? cellSizeMm / 2 : cellSizeMm,
+    geom.cellHeightMm,
     (activeHeight - (totalRows - 1) * cellLayout.cellSpacingY) / totalRows
   );
 
@@ -30,11 +34,20 @@ function ModuleSVG({ module }: { module: SolarModule }) {
   const offsetX = marginLeft + (activeWidth - matrixW) / 2;
   const offsetY = marginTop + (activeHeight - matrixH) / 2;
 
+  // Ribbon and cross connector colors
+  const ribbonHex = module.ribbonColor === 'black' ? '#1a1a1a' : '#c0c0c0';
+  const crossConnHex = module.crossConnectorColor === 'black' ? '#1a1a1a' : '#c0c0c0';
+
   const cells = [];
   for (let r = 0; r < totalRows; r++) {
     for (let c = 0; c < totalCols; c++) {
       const cx = offsetX + c * (effectiveCellW + cellLayout.cellSpacingX);
       const cy = offsetY + r * (effectiveCellH + cellLayout.cellSpacingY);
+
+      // Cell shape - rounded corners for M6 RearCon
+      const cornerRadius = geom.roundedCorners ? 4 : 1;
+
+      // Cell body (dark silicon)
       cells.push(
         <rect
           key={`cell-${r}-${c}`}
@@ -45,38 +58,94 @@ function ModuleSVG({ module }: { module: SolarModule }) {
           fill="#1a1a2e"
           stroke="#2a2a4a"
           strokeWidth={0.5}
-          rx={1}
+          rx={cornerRadius}
         />
       );
 
-      // Draw ribbons on each cell
-      for (let ri = 0; ri < module.ribbonCount; ri++) {
-        const ribbonX = cx + ((ri + 1) / (module.ribbonCount + 1)) * effectiveCellW;
+      // Cell grid lines (visible cell pattern - busbar grid pattern)
+      // Horizontal grid lines for cell texture
+      const gridLineCount = 6;
+      for (let gi = 1; gi < gridLineCount; gi++) {
+        const gy = cy + (gi / gridLineCount) * effectiveCellH;
         cells.push(
           <line
-            key={`ribbon-${r}-${c}-${ri}`}
-            x1={ribbonX}
-            y1={cy}
-            x2={ribbonX}
-            y2={cy + effectiveCellH}
-            stroke="#c0c0c0"
-            strokeWidth={module.ribbonWidthMm * 2}
-            opacity={0.6}
+            key={`grid-h-${r}-${c}-${gi}`}
+            x1={cx + 1}
+            y1={gy}
+            x2={cx + effectiveCellW - 1}
+            y2={gy}
+            stroke="#2a2a4a"
+            strokeWidth={0.3}
+            opacity={0.5}
           />
         );
+      }
+
+      // Draw ribbons on each cell (skip for rear contact cells)
+      if (!geom.rearContact && module.ribbonCount > 0) {
+        for (let ri = 0; ri < module.ribbonCount; ri++) {
+          const ribbonX = cx + ((ri + 1) / (module.ribbonCount + 1)) * effectiveCellW;
+          cells.push(
+            <line
+              key={`ribbon-${r}-${c}-${ri}`}
+              x1={ribbonX}
+              y1={cy}
+              x2={ribbonX}
+              y2={cy + effectiveCellH}
+              stroke={ribbonHex}
+              strokeWidth={module.ribbonWidthMm * 2}
+              opacity={0.6}
+            />
+          );
+        }
       }
     }
   }
 
-  // String connections (horizontal ribbons between rows)
-  const stringRibbons = [];
+  // Cross connectors (horizontal ribbons between cell string rows)
+  const crossConnectors = [];
   for (let r = 0; r < totalRows - 1; r++) {
     // Connect at alternating sides
     const side = r % 2 === 0 ? 'right' : 'left';
+    const connY = offsetY + (r + 1) * (effectiveCellH + cellLayout.cellSpacingY) - cellLayout.cellSpacingY / 2;
+
+    // Draw cross connector line across all columns
+    if (side === 'right') {
+      const startX = offsetX + matrixW - effectiveCellW * 0.3;
+      const endX = offsetX + matrixW + 5;
+      crossConnectors.push(
+        <line
+          key={`xconn-${r}`}
+          x1={startX}
+          y1={connY}
+          x2={endX}
+          y2={connY}
+          stroke={crossConnHex}
+          strokeWidth={1.5}
+          opacity={0.6}
+        />
+      );
+    } else {
+      const startX = offsetX - 5;
+      const endX = offsetX + effectiveCellW * 0.3;
+      crossConnectors.push(
+        <line
+          key={`xconn-${r}`}
+          x1={startX}
+          y1={connY}
+          x2={endX}
+          y2={connY}
+          stroke={crossConnHex}
+          strokeWidth={1.5}
+          opacity={0.6}
+        />
+      );
+    }
+
+    // Connection point circle
     const sx = side === 'right' ? offsetX + matrixW - 5 : offsetX + 5;
-    const sy = offsetY + (r + 1) * (effectiveCellH + cellLayout.cellSpacingY) - cellLayout.cellSpacingY / 2;
-    stringRibbons.push(
-      <circle key={`conn-${r}`} cx={sx} cy={sy} r={3} fill="#c0c0c0" opacity={0.5} />
+    crossConnectors.push(
+      <circle key={`conn-${r}`} cx={sx} cy={connY} r={3} fill={crossConnHex} opacity={0.5} />
     );
   }
 
@@ -85,6 +154,13 @@ function ModuleSVG({ module }: { module: SolarModule }) {
   const jbHeight = 25;
   const jbX = width / 2 - jbWidth / 2;
   const jbY = height - marginBottom / 2 - jbHeight / 2;
+
+  // Background fill based on module color
+  const bgFill = module.moduleColor === 'transparent'
+    ? '#e8f4f8'
+    : module.backsheetType === 'transparent'
+      ? '#e8f4f8'
+      : '#0f172a';
 
   return (
     <svg viewBox={viewBox} className="h-full w-full" preserveAspectRatio="xMidYMid meet">
@@ -106,28 +182,29 @@ function ModuleSVG({ module }: { module: SolarModule }) {
         y={module.frameType === 'frameless' ? 0 : 4}
         width={width - (module.frameType === 'frameless' ? 0 : 8)}
         height={height - (module.frameType === 'frameless' ? 0 : 8)}
-        fill={module.backsheetType === 'transparent' ? '#e8f4f8' : '#0f172a'}
+        fill={bgFill}
         rx={1}
-      />
-
-      {/* Active area outline */}
-      <rect
-        x={marginLeft}
-        y={marginTop}
-        width={activeWidth}
-        height={activeHeight}
-        fill="none"
-        stroke="#3b82f6"
-        strokeWidth={0.5}
-        strokeDasharray="4 2"
-        opacity={0.4}
       />
 
       {/* Cells with ribbons */}
       {cells}
 
-      {/* String connection points */}
-      {stringRibbons}
+      {/* Cross connectors */}
+      {crossConnectors}
+
+      {/* Color overlay (SOLARCOLOR tinting) - on top of cells */}
+      {module.moduleColor !== 'black' && (
+        <rect
+          x={module.frameType === 'frameless' ? 0 : 4}
+          y={module.frameType === 'frameless' ? 0 : 4}
+          width={width - (module.frameType === 'frameless' ? 0 : 8)}
+          height={height - (module.frameType === 'frameless' ? 0 : 8)}
+          fill={colorDef.hex}
+          opacity={colorDef.opacity}
+          rx={1}
+          style={{ pointerEvents: 'none' }}
+        />
+      )}
 
       {/* Junction box */}
       <rect
@@ -188,6 +265,8 @@ export default function ModulePreview() {
   }
 
   const areaM2 = (selectedModule.width * selectedModule.height) / 1_000_000;
+  const geom = getCellGeometry(selectedModule.cellGeometryId);
+  const colorDef = MODULE_COLOR_PALETTE[selectedModule.moduleColor];
 
   return (
     <div className="flex h-full flex-col">
@@ -216,19 +295,27 @@ export default function ModulePreview() {
           </div>
           <div>
             <span className="text-slate-400">Cells</span>
-            <div className="font-medium">{selectedModule.totalCells} ({selectedModule.cellType})</div>
+            <div className="font-medium">{selectedModule.totalCells} ({geom.label.split(' ')[0]})</div>
           </div>
           <div>
             <span className="text-slate-400">Power</span>
             <div className="font-medium">{selectedModule.powerWp} Wp</div>
           </div>
           <div>
-            <span className="text-slate-400">Glass</span>
-            <div className="font-medium">{selectedModule.glassType}</div>
+            <span className="text-slate-400">Color</span>
+            <div className="font-medium flex items-center gap-1">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-sm border border-slate-300"
+                style={{ backgroundColor: colorDef.hex }}
+              />
+              {colorDef.label}
+            </div>
           </div>
           <div>
-            <span className="text-slate-400">Back</span>
-            <div className="font-medium">{selectedModule.backsheetType}</div>
+            <span className="text-slate-400">Ribbons</span>
+            <div className="font-medium">
+              {geom.rearContact ? 'Rear contact' : `${selectedModule.ribbonCount}x ${selectedModule.ribbonColor}`}
+            </div>
           </div>
         </div>
       </div>
