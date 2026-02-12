@@ -1,28 +1,27 @@
 export type CellType = 'mono-PERC' | 'mono-HJT' | 'mono-TOPCon' | 'poly' | 'custom';
 export type CellFormat = 'M6-166mm' | 'M10-182mm' | 'M12-210mm' | 'custom';
-export type GlassType = 'tempered-3.2mm' | 'tempered-2.0mm' | 'anti-glare-3.2mm' | 'custom';
-export type BacksheetType = 'glass-glass' | 'TPT' | 'TPE' | 'transparent' | 'custom';
+export type GlassTexture = 'smooth' | 'textured' | 'anti-glare';
 
-export interface CellLayout {
-  rows: number;
-  columns: number;
-  halfCut: boolean;
-  cellSpacingX: number; // mm
-  cellSpacingY: number; // mm
-}
-
-// Color efficiency factors for power computation
+// Color efficiency factors for power computation (with display colors for preview)
 export const MODULE_COLOR_TYPES = [
-  { id: 'standard', label: 'Standard (Dark Blue)', factor: 1.0 },
-  { id: 'full-black', label: 'Full Black', factor: 0.97 },
-  { id: 'totally-black', label: 'Totally Black', factor: 0.94 },
-  { id: 'solarcolor-blue', label: 'SOLARCOLOR Blue', factor: 0.82 },
-  { id: 'solarcolor-green', label: 'SOLARCOLOR Green', factor: 0.76 },
-  { id: 'solarcolor-red', label: 'SOLARCOLOR Red', factor: 0.72 },
-  { id: 'solarcolor-terracotta', label: 'SOLARCOLOR Terracotta', factor: 0.74 },
-  { id: 'solarcolor-grey', label: 'SOLARCOLOR Grey', factor: 0.80 },
-  { id: 'solarcolor-white', label: 'SOLARCOLOR White', factor: 0.68 },
+  { id: 'standard', label: 'Standard (Dark Blue)', factor: 1.0, displayColor: '#1e3a5f' },
+  { id: 'full-black', label: 'Full Black', factor: 0.97, displayColor: '#111827' },
+  { id: 'totally-black', label: 'Totally Black', factor: 0.94, displayColor: '#030712' },
+  { id: 'solarcolor-blue', label: 'SOLARCOLOR Blue', factor: 0.82, displayColor: '#1d4ed8' },
+  { id: 'solarcolor-green', label: 'SOLARCOLOR Green', factor: 0.76, displayColor: '#15803d' },
+  { id: 'solarcolor-red', label: 'SOLARCOLOR Red', factor: 0.72, displayColor: '#b91c1c' },
+  { id: 'solarcolor-terracotta', label: 'SOLARCOLOR Terracotta', factor: 0.74, displayColor: '#9a3412' },
+  { id: 'solarcolor-grey', label: 'SOLARCOLOR Grey', factor: 0.80, displayColor: '#4b5563' },
+  { id: 'solarcolor-white', label: 'SOLARCOLOR White', factor: 0.68, displayColor: '#cbd5e1' },
 ] as const;
+
+export const BACKGLASS_COLOR_OPTIONS = [
+  { id: 'white', label: 'White', displayColor: '#f1f5f9' },
+  { id: 'black', label: 'Black', displayColor: '#1e293b' },
+  { id: 'transparent', label: 'Transparent', displayColor: '#e0f2fe' },
+] as const;
+
+export const GLASS_TEXTURE_OPTIONS: GlassTexture[] = ['smooth', 'textured', 'anti-glare'];
 
 export const TEXTURED_GLASS_EFFICIENCY = 0.95;
 
@@ -42,104 +41,119 @@ export const FORMAT_SIZE_MAP: Record<string, number> = {
   'custom': 182,
 };
 
-export function computeTotalCells(layout: CellLayout): number {
-  return layout.rows * layout.columns * (layout.halfCut ? 2 : 1);
-}
-
-export function computePower(
-  totalCells: number,
-  cellFormat: CellFormat,
-  halfCut: boolean,
-  moduleColorType: string,
-  texturedGlass: boolean
-): number {
-  const fullCellPower = CELL_POWER_MAP[cellFormat] ?? 6.0;
-  const cellPower = halfCut ? fullCellPower / 2 : fullCellPower;
-  const colorType = MODULE_COLOR_TYPES.find((c) => c.id === moduleColorType);
-  const colorFactor = colorType?.factor ?? 1.0;
-  const glassFactor = texturedGlass ? TEXTURED_GLASS_EFFICIENCY : 1.0;
-  return Math.round(totalCells * cellPower * colorFactor * glassFactor * 10) / 10;
+// ── Submodule: an independent cell array within a module ──
+export interface SubmoduleConfig {
+  stringAmount: number;           // number of strings (columns)
+  cellsPerString: number;         // number of cells per string (rows)
+  cellType: CellType;
+  cellFormat: CellFormat;
+  halfCut: boolean;
+  standardLayout: boolean;        // when true, uses standard spacing & margin values
+  distanceToBorderX: number;      // mm - margin left and right
+  distanceToBorderY: number;      // mm - margin top and bottom
+  distanceBetweenCells: number;   // mm - spacing between cells within a string
+  distanceBetweenStrings: number; // mm - spacing between strings
+  blackRibbonsAndConnectors: boolean;
 }
 
 export interface SolarModule {
   id: string;
   name: string;
-  // Outer dimensions
   width: number;   // mm
   height: number;  // mm
-  // Cell configuration
-  cellType: CellType;
-  cellFormat: CellFormat;
-  cellSizeMm: number;       // actual cell edge length in mm (derived from format)
-  cellLayout: CellLayout;
-  // Margins (distance from module edge to active cell area)
-  marginTop: number;    // mm
-  marginBottom: number; // mm
-  marginLeft: number;   // mm
-  marginRight: number;  // mm
-  // Components
-  glassType: GlassType;
-  backsheetType: BacksheetType;
-  // Ribbon / interconnection
-  ribbonWidthMm: number;   // fixed, not editable
-  ribbonCount: number;      // fixed, not editable
-  ribbonColor: string;      // editable
+  // Submodules
+  submodule1: SubmoduleConfig;
+  submodule2Enabled: boolean;
+  submodule2: SubmoduleConfig;
+  // Glass configuration
+  standardGlass: boolean;
+  frontglassTexture: GlassTexture;
+  frontglassColor: string;        // ID from MODULE_COLOR_TYPES
+  backglassTexture: GlassTexture;
+  backglassColor: string;         // ID from BACKGLASS_COLOR_OPTIONS
+  // Fixed ribbon properties
+  ribbonWidthMm: number;
+  ribbonCount: number;
   // Encapsulant
   encapsulantType: 'EVA' | 'POE' | 'EPE';
-  // Power computation inputs
-  moduleColorType: string;  // ID from MODULE_COLOR_TYPES
-  texturedGlass: boolean;
-  // Production flags
-  useStandardSpacing: boolean;
-  isStandardString: boolean;
-  stringsPrinted: boolean;
-  glassColorProcess: 'none' | 'morpho' | 'inkjet';
-  // Calculated
+  // Computed
   totalCells: number;
   powerWp: number;
   // Color for visual identification
   color: string;
 }
 
-export function createDefaultModule(id: string, name: string): SolarModule {
-  const cellLayout: CellLayout = {
-    rows: 6,
-    columns: 10,
+export function computeSubmoduleCells(sub: SubmoduleConfig): number {
+  return sub.stringAmount * sub.cellsPerString * (sub.halfCut ? 2 : 1);
+}
+
+export function computeModulePower(
+  submodule1: SubmoduleConfig,
+  submodule2Enabled: boolean,
+  submodule2: SubmoduleConfig,
+  frontglassColor: string,
+  frontglassTexture: GlassTexture,
+): number {
+  const colorType = MODULE_COLOR_TYPES.find((c) => c.id === frontglassColor);
+  const colorFactor = colorType?.factor ?? 1.0;
+  const glassFactor = frontglassTexture === 'textured' ? TEXTURED_GLASS_EFFICIENCY : 1.0;
+
+  function subPower(sub: SubmoduleConfig): number {
+    const cells = computeSubmoduleCells(sub);
+    const fullCellPower = CELL_POWER_MAP[sub.cellFormat] ?? 6.0;
+    const cellPower = sub.halfCut ? fullCellPower / 2 : fullCellPower;
+    return cells * cellPower;
+  }
+
+  let total = subPower(submodule1);
+  if (submodule2Enabled) total += subPower(submodule2);
+  return Math.round(total * colorFactor * glassFactor * 10) / 10;
+}
+
+export function createDefaultSubmodule(): SubmoduleConfig {
+  return {
+    stringAmount: 10,
+    cellsPerString: 6,
+    cellType: 'mono-PERC',
+    cellFormat: 'M10-182mm',
     halfCut: true,
-    cellSpacingX: 2,
-    cellSpacingY: 2,
+    standardLayout: true,
+    distanceToBorderX: 25,
+    distanceToBorderY: 40,
+    distanceBetweenCells: 2,
+    distanceBetweenStrings: 2,
+    blackRibbonsAndConnectors: false,
   };
-  const totalCells = computeTotalCells(cellLayout);
-  const cellFormat: CellFormat = 'M10-182mm';
-  const moduleColorType = 'standard';
-  const texturedGlass = false;
+}
+
+export function createDefaultModule(id: string, name: string): SolarModule {
+  const submodule1 = createDefaultSubmodule();
+  const submodule2 = createDefaultSubmodule();
+  submodule2.stringAmount = 5;
+  submodule2.cellsPerString = 3;
+  const frontglassColor = 'standard';
+  const frontglassTexture: GlassTexture = 'smooth';
+  const totalCells = computeSubmoduleCells(submodule1);
+  const powerWp = computeModulePower(submodule1, false, submodule2, frontglassColor, frontglassTexture);
+
   return {
     id,
     name,
     width: 1134,
     height: 1722,
-    cellType: 'mono-PERC',
-    cellFormat,
-    cellSizeMm: FORMAT_SIZE_MAP[cellFormat],
-    cellLayout,
-    marginTop: 40,
-    marginBottom: 40,
-    marginLeft: 25,
-    marginRight: 25,
-    glassType: 'tempered-3.2mm',
-    backsheetType: 'glass-glass',
+    submodule1,
+    submodule2Enabled: false,
+    submodule2,
+    standardGlass: true,
+    frontglassTexture,
+    frontglassColor,
+    backglassTexture: 'smooth',
+    backglassColor: 'white',
     ribbonWidthMm: 0.4,
     ribbonCount: 6,
-    ribbonColor: '#c0c0c0',
     encapsulantType: 'EVA',
-    moduleColorType,
-    texturedGlass,
-    useStandardSpacing: true,
-    isStandardString: true,
-    stringsPrinted: false,
-    glassColorProcess: 'none',
     totalCells,
-    powerWp: computePower(totalCells, cellFormat, cellLayout.halfCut, moduleColorType, texturedGlass),
+    powerWp,
     color: '#1e3a5f',
   };
 }

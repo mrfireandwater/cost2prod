@@ -1,27 +1,22 @@
 import { useAppContext } from '../../context/AppContext';
-import type { SolarModule, GlassType, BacksheetType, CellLayout } from '../../models/solarModule';
-import { MODULE_COLOR_TYPES, TEXTURED_GLASS_EFFICIENCY } from '../../models/solarModule';
-import { DEFAULT_SPACING_CONFIG } from '../../models/production';
+import type { SolarModule, SubmoduleConfig, CellType, CellFormat, GlassTexture } from '../../models/solarModule';
+import {
+  MODULE_COLOR_TYPES,
+  BACKGLASS_COLOR_OPTIONS,
+  GLASS_TEXTURE_OPTIONS,
+  TEXTURED_GLASS_EFFICIENCY,
+  computeSubmoduleCells,
+} from '../../models/solarModule';
+import { DEFAULT_SPACING_CONFIG, DEFAULT_MARGIN_CONFIG } from '../../models/production';
 
-const GLASS_TYPES: GlassType[] = ['tempered-3.2mm', 'tempered-2.0mm', 'anti-glare-3.2mm', 'custom'];
-const BACKSHEET_TYPES: BacksheetType[] = ['glass-glass', 'TPT', 'TPE', 'transparent', 'custom'];
+const CELL_TYPES: CellType[] = ['mono-PERC', 'mono-HJT', 'mono-TOPCon', 'poly', 'custom'];
+const CELL_FORMATS: CellFormat[] = ['M6-166mm', 'M10-182mm', 'M12-210mm', 'custom'];
 
 function NumberInput({
-  label,
-  value,
-  onChange,
-  unit,
-  min,
-  max,
-  step,
+  label, value, onChange, unit, min, max, step,
 }: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  unit?: string;
-  min?: number;
-  max?: number;
-  step?: number;
+  label: string; value: number; onChange: (v: number) => void;
+  unit?: string; min?: number; max?: number; step?: number;
 }) {
   return (
     <label className="flex flex-col gap-1">
@@ -41,46 +36,124 @@ function NumberInput({
   );
 }
 
-function SelectInput<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
+// ── Submodule form (reused for sub1 and sub2) ──
+function SubmoduleForm({
+  sub,
+  moduleId,
+  subKey,
 }: {
-  label: string;
-  value: T;
-  options: T[];
-  onChange: (v: T) => void;
+  sub: SubmoduleConfig;
+  moduleId: string;
+  subKey: 'submodule1' | 'submodule2';
 }) {
+  const { updateSubmodule } = useAppContext();
+  const upd = (updates: Partial<SubmoduleConfig>) => updateSubmodule(moduleId, subKey, updates);
+  const totalCells = computeSubmoduleCells(sub);
+
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-slate-500">{label}</span>
-      <select
-        className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-        value={value}
-        onChange={(e) => onChange(e.target.value as T)}
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <NumberInput label="String amount" value={sub.stringAmount} min={1} max={30} onChange={(v) => upd({ stringAmount: v })} />
+        <NumberInput label="Cells per string" value={sub.cellsPerString} min={1} max={30} onChange={(v) => upd({ cellsPerString: v })} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-slate-500">Cell type</span>
+          <select
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+            value={sub.cellType}
+            onChange={(e) => upd({ cellType: e.target.value as CellType })}
+          >
+            {CELL_TYPES.map((ct) => (
+              <option key={ct} value={ct}>{ct}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-slate-500">Cell format</span>
+          <select
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+            value={sub.cellFormat}
+            onChange={(e) => upd({ cellFormat: e.target.value as CellFormat })}
+          >
+            {CELL_FORMATS.map((cf) => (
+              <option key={cf} value={cf}>{cf}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={sub.standardLayout}
+          onChange={(e) => {
+            const std = e.target.checked;
+            upd({
+              standardLayout: std,
+              ...(std
+                ? {
+                    distanceToBorderX: DEFAULT_MARGIN_CONFIG.standardMinMm,
+                    distanceToBorderY: 40,
+                    distanceBetweenCells: DEFAULT_SPACING_CONFIG.standardY,
+                    distanceBetweenStrings: DEFAULT_SPACING_CONFIG.standardX,
+                  }
+                : {}),
+            });
+          }}
+          className="rounded"
+        />
+        Standard Layout
+      </label>
+      {!sub.standardLayout && (
+        <div className="ml-5 grid grid-cols-2 gap-2">
+          <NumberInput label="Distance to border X" value={sub.distanceToBorderX} unit="mm" min={0} step={1} onChange={(v) => upd({ distanceToBorderX: v })} />
+          <NumberInput label="Distance to border Y" value={sub.distanceToBorderY} unit="mm" min={0} step={1} onChange={(v) => upd({ distanceToBorderY: v })} />
+          <NumberInput label="Distance between cells" value={sub.distanceBetweenCells} unit="mm" min={0} step={0.5} onChange={(v) => upd({ distanceBetweenCells: v })} />
+          <NumberInput label="Distance between strings" value={sub.distanceBetweenStrings} unit="mm" min={0} step={0.5} onChange={(v) => upd({ distanceBetweenStrings: v })} />
+        </div>
+      )}
+      {!sub.standardLayout && (
+        <div className="ml-5 text-[10px] text-amber-600">Non-standard layout increases production cost</div>
+      )}
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={sub.halfCut}
+          onChange={(e) => upd({ halfCut: e.target.checked })}
+          className="rounded"
+        />
+        Half-cut cells
+      </label>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={sub.blackRibbonsAndConnectors}
+          onChange={(e) => upd({ blackRibbonsAndConnectors: e.target.checked })}
+          className="rounded"
+        />
+        Black ribbons and connector
+      </label>
+
+      <div className="text-xs text-slate-400">
+        Total cells: <span className="font-semibold text-slate-600">{totalCells}</span>
+      </div>
+    </div>
   );
 }
 
+// ── Main module form ──
 function ModuleForm({ module }: { module: SolarModule }) {
   const { updateModule } = useAppContext();
   const id = module.id;
-
   const update = (updates: Partial<SolarModule>) => updateModule(id, updates);
-  const updateLayout = (updates: Partial<CellLayout>) =>
-    update({ cellLayout: { ...module.cellLayout, ...updates } });
 
-  const colorType = MODULE_COLOR_TYPES.find((c) => c.id === module.moduleColorType);
+  const colorType = MODULE_COLOR_TYPES.find((c) => c.id === module.frontglassColor);
   const colorFactor = colorType?.factor ?? 1.0;
-  const glassFactor = module.texturedGlass ? TEXTURED_GLASS_EFFICIENCY : 1.0;
+  const glassFactor = module.frontglassTexture === 'textured' ? TEXTURED_GLASS_EFFICIENCY : 1.0;
 
   return (
     <div className="space-y-4">
@@ -115,141 +188,137 @@ function ModuleForm({ module }: { module: SolarModule }) {
         </div>
       </fieldset>
 
-      {/* Cell Layout */}
+      {/* Submodul 1 */}
       <fieldset className="rounded border border-slate-200 p-2">
-        <legend className="px-1 text-xs font-semibold text-slate-600">Cell Layout (Strings)</legend>
-        <div className="grid grid-cols-2 gap-2">
-          <NumberInput label="Rows" value={module.cellLayout.rows} min={1} max={20} onChange={(v) => updateLayout({ rows: v })} />
-          <NumberInput label="Columns" value={module.cellLayout.columns} min={1} max={20} onChange={(v) => updateLayout({ columns: v })} />
-        </div>
-        <label className="mt-2 flex items-center gap-2 text-sm">
+        <legend className="px-1 text-xs font-semibold text-slate-600">Submodul 1</legend>
+        <SubmoduleForm sub={module.submodule1} moduleId={id} subKey="submodule1" />
+      </fieldset>
+
+      {/* Submodul 2 (optional) */}
+      <fieldset className="rounded border border-slate-200 p-2">
+        <legend className="px-1 text-xs font-semibold text-slate-600">
+          <label className="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={module.submodule2Enabled}
+              onChange={(e) => update({ submodule2Enabled: e.target.checked })}
+              className="rounded"
+            />
+            Submodul 2
+          </label>
+        </legend>
+        {module.submodule2Enabled && (
+          <SubmoduleForm sub={module.submodule2} moduleId={id} subKey="submodule2" />
+        )}
+        {!module.submodule2Enabled && (
+          <div className="text-xs text-slate-400 italic py-1">Enable to add a second cell array</div>
+        )}
+      </fieldset>
+
+      {/* Glass type */}
+      <fieldset className="rounded border border-slate-200 p-2">
+        <legend className="px-1 text-xs font-semibold text-slate-600">Glass type</legend>
+        <label className="flex items-center gap-2 text-sm mb-2">
           <input
             type="checkbox"
-            checked={module.useStandardSpacing}
+            checked={module.standardGlass}
             onChange={(e) => {
-              update({ useStandardSpacing: e.target.checked });
-              if (e.target.checked) {
-                updateLayout({
-                  cellSpacingX: DEFAULT_SPACING_CONFIG.standardX,
-                  cellSpacingY: DEFAULT_SPACING_CONFIG.standardY,
-                });
-              }
+              const std = e.target.checked;
+              update({
+                standardGlass: std,
+                ...(std
+                  ? {
+                      frontglassTexture: 'smooth' as GlassTexture,
+                      frontglassColor: 'standard',
+                      backglassTexture: 'smooth' as GlassTexture,
+                      backglassColor: 'white',
+                    }
+                  : {}),
+              });
             }}
             className="rounded"
           />
-          Standard spacing
-          <span className="text-xs text-slate-400">
-            ({DEFAULT_SPACING_CONFIG.standardX}/{DEFAULT_SPACING_CONFIG.standardY} mm)
-          </span>
+          Standard glass
         </label>
-        {!module.useStandardSpacing && (
-          <div className="mt-1 grid grid-cols-2 gap-2">
-            <NumberInput label="Spacing X" value={module.cellLayout.cellSpacingX} unit="mm" min={0} step={0.5} onChange={(v) => updateLayout({ cellSpacingX: v })} />
-            <NumberInput label="Spacing Y" value={module.cellLayout.cellSpacingY} unit="mm" min={0} step={0.5} onChange={(v) => updateLayout({ cellSpacingY: v })} />
+
+        {!module.standardGlass && (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-slate-500">Frontglass texture</span>
+                <select
+                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                  value={module.frontglassTexture}
+                  onChange={(e) => update({ frontglassTexture: e.target.value as GlassTexture })}
+                >
+                  {GLASS_TEXTURE_OPTIONS.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-slate-500">Frontglass color</span>
+                <select
+                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none font-mono"
+                  value={module.frontglassColor}
+                  onChange={(e) => update({ frontglassColor: e.target.value })}
+                >
+                  {MODULE_COLOR_TYPES.map((ct) => (
+                    <option key={ct.id} value={ct.id}>
+                      {ct.label.padEnd(28)} {(ct.factor * 100).toFixed(0)}%
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-slate-500">Backglass texture</span>
+                <select
+                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                  value={module.backglassTexture}
+                  onChange={(e) => update({ backglassTexture: e.target.value as GlassTexture })}
+                >
+                  {GLASS_TEXTURE_OPTIONS.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-slate-500">Backglass color</span>
+                <select
+                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                  value={module.backglassColor}
+                  onChange={(e) => update({ backglassColor: e.target.value })}
+                >
+                  {BACKGLASS_COLOR_OPTIONS.map((bc) => (
+                    <option key={bc.id} value={bc.id}>{bc.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
         )}
-        {!module.useStandardSpacing && (
-          <div className="mt-1 text-[10px] text-amber-600">Non-standard spacing increases production cost</div>
-        )}
-        <label className="mt-2 flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={module.cellLayout.halfCut}
-            onChange={(e) => updateLayout({ halfCut: e.target.checked })}
-            className="rounded"
-          />
-          Half-cut cells
-        </label>
-        <div className="mt-1 text-xs text-slate-400">
-          Total cells: <span className="font-semibold text-slate-600">{module.totalCells}</span>
-        </div>
       </fieldset>
 
-      {/* String & Glass Options */}
-      <fieldset className="rounded border border-slate-200 p-2">
-        <legend className="px-1 text-xs font-semibold text-slate-600">String & Glass</legend>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={module.isStandardString}
-            onChange={(e) => update({ isStandardString: e.target.checked })}
-            className="rounded"
-          />
-          Standard string layout
-        </label>
-        {!module.isStandardString && (
-          <div className="mt-1 text-[10px] text-amber-600">Non-standard strings require machine re-setup</div>
-        )}
-        <label className="mt-2 flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={module.stringsPrinted}
-            onChange={(e) => update({ stringsPrinted: e.target.checked })}
-            className="rounded"
-          />
-          Printed strings (colored)
-        </label>
-        <label className="mt-2 flex flex-col gap-1">
-          <span className="text-xs font-medium text-slate-500">Glass color process</span>
-          <select
-            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-            value={module.glassColorProcess}
-            onChange={(e) => update({ glassColorProcess: e.target.value as 'none' | 'morpho' | 'inkjet' })}
-          >
-            <option value="none">None (standard)</option>
-            <option value="morpho">Morpho color (structural)</option>
-            <option value="inkjet">Inkjet printed</option>
-          </select>
-        </label>
-      </fieldset>
-
-      {/* Power */}
+      {/* Power (computed, read-only) */}
       <fieldset className="rounded border border-blue-200 bg-blue-50/30 p-2">
         <legend className="px-1 text-xs font-semibold text-blue-700">Power</legend>
-
-        {/* Module color type - two column dropdown */}
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-slate-500">Module Color (efficiency)</span>
-          <select
-            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none font-mono"
-            value={module.moduleColorType}
-            onChange={(e) => update({ moduleColorType: e.target.value })}
-          >
-            {MODULE_COLOR_TYPES.map((ct) => (
-              <option key={ct.id} value={ct.id}>
-                {ct.label.padEnd(28)} {(ct.factor * 100).toFixed(0)}%
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Textured glass */}
-        <label className="mt-2 flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={module.texturedGlass}
-            onChange={(e) => update({ texturedGlass: e.target.checked })}
-            className="rounded"
-          />
-          Textured glass
-          <span className="text-xs text-slate-400">
-            ({(TEXTURED_GLASS_EFFICIENCY * 100).toFixed(0)}% efficiency)
-          </span>
-        </label>
-
-        {/* Computed power display */}
-        <div className="mt-3 rounded bg-white border border-blue-200 p-2">
+        <div className="rounded bg-white border border-blue-200 p-2">
           <div className="text-xs text-slate-500 space-y-1">
             <div className="flex justify-between">
               <span>Cells:</span>
               <span className="font-medium text-slate-700">{module.totalCells}</span>
             </div>
             <div className="flex justify-between">
-              <span>Color factor:</span>
+              <span>Color factor ({colorType?.label ?? 'standard'}):</span>
               <span className="font-medium text-slate-700">{(colorFactor * 100).toFixed(0)}%</span>
             </div>
             <div className="flex justify-between">
-              <span>Glass factor:</span>
+              <span>Glass factor ({module.frontglassTexture}):</span>
               <span className="font-medium text-slate-700">{(glassFactor * 100).toFixed(0)}%</span>
             </div>
             <hr className="border-slate-200" />
@@ -258,25 +327,6 @@ function ModuleForm({ module }: { module: SolarModule }) {
               <span className="text-blue-700">{module.powerWp} Wp</span>
             </div>
           </div>
-        </div>
-      </fieldset>
-
-      {/* Components */}
-      <fieldset className="rounded border border-slate-200 p-2">
-        <legend className="px-1 text-xs font-semibold text-slate-600">Components</legend>
-        <div className="grid grid-cols-2 gap-2">
-          <SelectInput label="Glass" value={module.glassType} options={GLASS_TYPES} onChange={(v) => update({ glassType: v })} />
-          <SelectInput label="Backsheet" value={module.backsheetType} options={BACKSHEET_TYPES} onChange={(v) => update({ backsheetType: v })} />
-          <SelectInput label="Encapsulant" value={module.encapsulantType} options={['EVA', 'POE', 'EPE']} onChange={(v) => update({ encapsulantType: v as 'EVA' | 'POE' | 'EPE' })} />
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-slate-500">Ribbon Color</span>
-            <input
-              type="color"
-              className="h-[30px] w-10 cursor-pointer rounded border border-slate-300"
-              value={module.ribbonColor}
-              onChange={(e) => update({ ribbonColor: e.target.value })}
-            />
-          </label>
         </div>
       </fieldset>
     </div>

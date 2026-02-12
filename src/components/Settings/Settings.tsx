@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import type { SolarModule, CellType, CellFormat, GlassType, BacksheetType, CellLayout } from '../../models/solarModule';
+import type { SolarModule, SubmoduleConfig, CellType, CellFormat, GlassTexture } from '../../models/solarModule';
+import { MODULE_COLOR_TYPES, BACKGLASS_COLOR_OPTIONS, GLASS_TEXTURE_OPTIONS, computeSubmoduleCells } from '../../models/solarModule';
 import type { ProductionSection, ProductionSubStep } from '../../models/production';
 
 const CELL_TYPES: CellType[] = ['mono-PERC', 'mono-HJT', 'mono-TOPCon', 'poly', 'custom'];
 const CELL_FORMATS: CellFormat[] = ['M6-166mm', 'M10-182mm', 'M12-210mm', 'custom'];
-const GLASS_TYPES: GlassType[] = ['tempered-3.2mm', 'tempered-2.0mm', 'anti-glare-3.2mm', 'custom'];
-const BACKSHEET_TYPES: BacksheetType[] = ['glass-glass', 'TPT', 'TPE', 'transparent', 'custom'];
 
 function NumberInput({
   label, value, onChange, unit, min, max, step,
@@ -32,27 +31,6 @@ function NumberInput({
   );
 }
 
-function SelectInput<T extends string>({
-  label, value, options, onChange,
-}: {
-  label: string; value: T; options: T[]; onChange: (v: T) => void;
-}) {
-  return (
-    <label className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-medium text-slate-500">{label}</span>
-      <select
-        className="rounded border border-slate-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
-        value={value}
-        onChange={(e) => onChange(e.target.value as T)}
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>{o}</option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 // ── Collapsible section wrapper ──
 function Collapsible({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -71,42 +49,87 @@ function Collapsible({ title, children, defaultOpen = true }: { title: string; c
   );
 }
 
+// ── Submodule settings (reusable for sub1 and sub2) ──
+function SubmoduleSettings({
+  sub,
+  moduleId,
+  subKey,
+  label,
+}: {
+  sub: SubmoduleConfig;
+  moduleId: string;
+  subKey: 'submodule1' | 'submodule2';
+  label: string;
+}) {
+  const { updateSubmodule, stringConfig } = useAppContext();
+  const upd = (u: Partial<SubmoduleConfig>) => updateSubmodule(moduleId, subKey, u);
+  const cellPrice = stringConfig.cellPrices[sub.cellType]?.[sub.cellFormat] ?? 0;
+  const totalCells = computeSubmoduleCells(sub);
+
+  return (
+    <Collapsible title={label}>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <NumberInput label="Strings" value={sub.stringAmount} min={1} max={30} onChange={(v) => upd({ stringAmount: v })} />
+        <NumberInput label="Cells/string" value={sub.cellsPerString} min={1} max={30} onChange={(v) => upd({ cellsPerString: v })} />
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[11px] font-medium text-slate-500">Cell type</span>
+          <select className="rounded border border-slate-300 bg-white px-2 py-1 text-xs" value={sub.cellType} onChange={(e) => upd({ cellType: e.target.value as CellType })}>
+            {CELL_TYPES.map((ct) => <option key={ct} value={ct}>{ct}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[11px] font-medium text-slate-500">Cell format</span>
+          <select className="rounded border border-slate-300 bg-white px-2 py-1 text-xs" value={sub.cellFormat} onChange={(e) => upd({ cellFormat: e.target.value as CellFormat })}>
+            {CELL_FORMATS.map((cf) => <option key={cf} value={cf}>{cf}</option>)}
+          </select>
+        </label>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] font-medium text-slate-500">Price per cell</span>
+          <div className="rounded border border-green-200 bg-green-50 px-2 py-1 text-xs font-semibold text-green-700">
+            {cellPrice.toFixed(2)} EUR
+          </div>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] font-medium text-slate-500">Total cells</span>
+          <div className="rounded border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700">{totalCells}</div>
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-3 text-xs">
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={sub.halfCut} onChange={(e) => upd({ halfCut: e.target.checked })} className="rounded" />
+          Half-cut
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={sub.standardLayout} onChange={(e) => upd({ standardLayout: e.target.checked })} className="rounded" />
+          Standard layout
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={sub.blackRibbonsAndConnectors} onChange={(e) => upd({ blackRibbonsAndConnectors: e.target.checked })} className="rounded" />
+          Black ribbons
+        </label>
+      </div>
+      {!sub.standardLayout && (
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <NumberInput label="Border X" value={sub.distanceToBorderX} unit="mm" min={0} step={1} onChange={(v) => upd({ distanceToBorderX: v })} />
+          <NumberInput label="Border Y" value={sub.distanceToBorderY} unit="mm" min={0} step={1} onChange={(v) => upd({ distanceToBorderY: v })} />
+          <NumberInput label="Cell spacing" value={sub.distanceBetweenCells} unit="mm" min={0} step={0.5} onChange={(v) => upd({ distanceBetweenCells: v })} />
+          <NumberInput label="String spacing" value={sub.distanceBetweenStrings} unit="mm" min={0} step={0.5} onChange={(v) => upd({ distanceBetweenStrings: v })} />
+        </div>
+      )}
+    </Collapsible>
+  );
+}
+
 // ── Module settings ──
 function ModuleSettings({ module }: { module: SolarModule }) {
-  const { updateModule, stringConfig, marginConfig } = useAppContext();
+  const { updateModule } = useAppContext();
   const id = module.id;
   const update = (updates: Partial<SolarModule>) => updateModule(id, updates);
-  const updateLayout = (updates: Partial<CellLayout>) =>
-    update({ cellLayout: { ...module.cellLayout, ...updates } });
-
-  const cellPrice = stringConfig.cellPrices[module.cellType]?.[module.cellFormat] ?? 0;
-  const minMargin = Math.min(module.marginTop, module.marginBottom, module.marginLeft, module.marginRight);
-  const marginWarning = minMargin < marginConfig.tightThresholdMm
-    ? 'Tight margins (+35% cost)'
-    : minMargin < marginConfig.standardMinMm
-      ? 'Medium margins (+15% cost)'
-      : null;
 
   return (
     <div className="space-y-3">
-      <Collapsible title="Cell Configuration">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <SelectInput label="Cell Type" value={module.cellType} options={CELL_TYPES} onChange={(v) => update({ cellType: v })} />
-          <SelectInput label="Cell Format" value={module.cellFormat} options={CELL_FORMATS} onChange={(v) => update({ cellFormat: v })} />
-          <NumberInput label="Cell Size" value={module.cellSizeMm} unit="mm" min={50} max={250} onChange={(v) => update({ cellSizeMm: v })} />
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-medium text-slate-500">Price per cell</span>
-            <div className="rounded border border-green-200 bg-green-50 px-2 py-1 text-xs font-semibold text-green-700">
-              {cellPrice.toFixed(2)} EUR
-            </div>
-          </div>
-        </div>
-        <label className="mt-2 flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={module.cellLayout.halfCut} onChange={(e) => updateLayout({ halfCut: e.target.checked })} className="rounded" />
-          Half-cut cells
-        </label>
-      </Collapsible>
-
       <Collapsible title="Module Dimensions">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <NumberInput label="Width" value={module.width} unit="mm" min={100} onChange={(v) => update({ width: v })} />
@@ -114,65 +137,52 @@ function ModuleSettings({ module }: { module: SolarModule }) {
         </div>
       </Collapsible>
 
-      <Collapsible title="Cell Layout">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <NumberInput label="Rows" value={module.cellLayout.rows} min={1} max={20} onChange={(v) => updateLayout({ rows: v })} />
-          <NumberInput label="Columns" value={module.cellLayout.columns} min={1} max={20} onChange={(v) => updateLayout({ columns: v })} />
-          <NumberInput label="Spacing X" value={module.cellLayout.cellSpacingX} unit="mm" min={0} step={0.5} onChange={(v) => updateLayout({ cellSpacingX: v })} />
-          <NumberInput label="Spacing Y" value={module.cellLayout.cellSpacingY} unit="mm" min={0} step={0.5} onChange={(v) => updateLayout({ cellSpacingY: v })} />
-        </div>
-        <label className="mt-2 flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={module.useStandardSpacing} onChange={(e) => update({ useStandardSpacing: e.target.checked })} className="rounded" />
-          Standard spacing (2/2 mm)
+      <SubmoduleSettings sub={module.submodule1} moduleId={id} subKey="submodule1" label="Submodul 1" />
+
+      {module.submodule2Enabled && (
+        <SubmoduleSettings sub={module.submodule2} moduleId={id} subKey="submodule2" label="Submodul 2" />
+      )}
+
+      <Collapsible title="Glass Configuration">
+        <label className="flex items-center gap-2 text-xs mb-2">
+          <input type="checkbox" checked={module.standardGlass} onChange={(e) => update({ standardGlass: e.target.checked })} className="rounded" />
+          Standard glass
         </label>
-        {!module.useStandardSpacing && (
-          <div className="mt-1 text-[10px] text-amber-600">Non-standard spacing increases production cost</div>
+        {!module.standardGlass && (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[11px] font-medium text-slate-500">Front texture</span>
+              <select className="rounded border border-slate-300 bg-white px-2 py-1 text-xs" value={module.frontglassTexture} onChange={(e) => update({ frontglassTexture: e.target.value as GlassTexture })}>
+                {GLASS_TEXTURE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[11px] font-medium text-slate-500">Front color</span>
+              <select className="rounded border border-slate-300 bg-white px-2 py-1 text-xs" value={module.frontglassColor} onChange={(e) => update({ frontglassColor: e.target.value })}>
+                {MODULE_COLOR_TYPES.map((ct) => <option key={ct.id} value={ct.id}>{ct.label}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[11px] font-medium text-slate-500">Back texture</span>
+              <select className="rounded border border-slate-300 bg-white px-2 py-1 text-xs" value={module.backglassTexture} onChange={(e) => update({ backglassTexture: e.target.value as GlassTexture })}>
+                {GLASS_TEXTURE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[11px] font-medium text-slate-500">Back color</span>
+              <select className="rounded border border-slate-300 bg-white px-2 py-1 text-xs" value={module.backglassColor} onChange={(e) => update({ backglassColor: e.target.value })}>
+                {BACKGLASS_COLOR_OPTIONS.map((bc) => <option key={bc.id} value={bc.id}>{bc.label}</option>)}
+              </select>
+            </label>
+          </div>
         )}
       </Collapsible>
 
-      <Collapsible title="Margins (edge to cells)">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <NumberInput label="Top" value={module.marginTop} unit="mm" min={0} onChange={(v) => update({ marginTop: v })} />
-          <NumberInput label="Bottom" value={module.marginBottom} unit="mm" min={0} onChange={(v) => update({ marginBottom: v })} />
-          <NumberInput label="Left" value={module.marginLeft} unit="mm" min={0} onChange={(v) => update({ marginLeft: v })} />
-          <NumberInput label="Right" value={module.marginRight} unit="mm" min={0} onChange={(v) => update({ marginRight: v })} />
-        </div>
-        <div className="mt-1 text-[10px] text-slate-400">
-          Standard min: {marginConfig.standardMinMm} mm | Tight threshold: {marginConfig.tightThresholdMm} mm
-        </div>
-        {marginWarning && (
-          <div className="mt-1 text-[10px] text-amber-600">{marginWarning}</div>
-        )}
-      </Collapsible>
-
-      <Collapsible title="Components">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <SelectInput label="Glass" value={module.glassType} options={GLASS_TYPES} onChange={(v) => update({ glassType: v })} />
-          <SelectInput label="Backsheet" value={module.backsheetType} options={BACKSHEET_TYPES} onChange={(v) => update({ backsheetType: v })} />
-          <SelectInput label="Encapsulant" value={module.encapsulantType} options={['EVA', 'POE', 'EPE']} onChange={(v) => update({ encapsulantType: v as 'EVA' | 'POE' | 'EPE' })} />
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-medium text-slate-500">Ribbon Color</span>
-            <input type="color" className="h-[26px] w-10 cursor-pointer rounded border border-slate-300" value={module.ribbonColor} onChange={(e) => update({ ribbonColor: e.target.value })} />
-          </label>
-        </div>
-        <label className="mt-2 flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={module.isStandardString} onChange={(e) => update({ isStandardString: e.target.checked })} className="rounded" />
-          Standard string layout
-        </label>
-        <label className="mt-1 flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={module.stringsPrinted} onChange={(e) => update({ stringsPrinted: e.target.checked })} className="rounded" />
-          Printed strings (colored)
-        </label>
-        <label className="mt-2 flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-slate-500">Glass color process</span>
-          <select
-            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
-            value={module.glassColorProcess}
-            onChange={(e) => update({ glassColorProcess: e.target.value as 'none' | 'morpho' | 'inkjet' })}
-          >
-            <option value="none">None (standard)</option>
-            <option value="morpho">Morpho color (structural)</option>
-            <option value="inkjet">Inkjet printed</option>
+      <Collapsible title="Encapsulant">
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[11px] font-medium text-slate-500">Type</span>
+          <select className="rounded border border-slate-300 bg-white px-2 py-1 text-xs" value={module.encapsulantType} onChange={(e) => update({ encapsulantType: e.target.value as 'EVA' | 'POE' | 'EPE' })}>
+            {['EVA', 'POE', 'EPE'].map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </label>
       </Collapsible>
@@ -275,23 +285,20 @@ export default function Settings() {
           </h3>
 
           <div className="space-y-2">
-            {/* Section-level settings (Sales, Planning, etc.) */}
             {sections.map((s) => {
               if (s.id === 'material') {
-                // Material has its own config
                 return (
                   <Collapsible key={s.id} title={`${s.icon} ${s.name}`} defaultOpen={false}>
                     <p className="text-[10px] text-slate-400 mb-2">{s.description}</p>
 
-                    {/* Glass pricing */}
-                    <div className="text-[10px] font-semibold text-slate-500 mb-1">Glass base prices (EUR/m²)</div>
+                    <div className="text-[10px] font-semibold text-slate-500 mb-1">Glass base prices (EUR/m2)</div>
                     <div className="grid grid-cols-2 gap-2 mb-2">
                       {Object.entries(materialConfig.glassBasePrices).map(([type, price]) => (
                         <NumberInput
                           key={type}
                           label={type}
                           value={price}
-                          unit="EUR/m²"
+                          unit="EUR/m2"
                           min={0}
                           step={0.5}
                           onChange={(v) => updateMaterialConfig({ glassBasePrices: { ...materialConfig.glassBasePrices, [type]: v } })}
@@ -299,17 +306,17 @@ export default function Settings() {
                       ))}
                     </div>
 
-                    <div className="text-[10px] font-semibold text-slate-500 mb-1 mt-3">Glass premiums (EUR/m²)</div>
+                    <div className="text-[10px] font-semibold text-slate-500 mb-1 mt-3">Glass premiums (EUR/m2)</div>
                     <div className="grid grid-cols-3 gap-2 mb-2">
-                      <NumberInput label="Textured" value={materialConfig.texturedGlassPremium} unit="EUR/m²" min={0} step={0.5} onChange={(v) => updateMaterialConfig({ texturedGlassPremium: v })} />
-                      <NumberInput label="Morpho color" value={materialConfig.morphoColorPremium} unit="EUR/m²" min={0} step={1} onChange={(v) => updateMaterialConfig({ morphoColorPremium: v })} />
-                      <NumberInput label="Inkjet print" value={materialConfig.inkjetPrintPremium} unit="EUR/m²" min={0} step={0.5} onChange={(v) => updateMaterialConfig({ inkjetPrintPremium: v })} />
+                      <NumberInput label="Textured" value={materialConfig.texturedGlassPremium} unit="EUR/m2" min={0} step={0.5} onChange={(v) => updateMaterialConfig({ texturedGlassPremium: v })} />
+                      <NumberInput label="Morpho color" value={materialConfig.morphoColorPremium} unit="EUR/m2" min={0} step={1} onChange={(v) => updateMaterialConfig({ morphoColorPremium: v })} />
+                      <NumberInput label="Inkjet print" value={materialConfig.inkjetPrintPremium} unit="EUR/m2" min={0} step={0.5} onChange={(v) => updateMaterialConfig({ inkjetPrintPremium: v })} />
                     </div>
 
                     <div className="text-[10px] font-semibold text-slate-500 mb-1 mt-3">Other materials</div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <NumberInput label="Backsheet" value={materialConfig.backsheetPerM2} unit="EUR/m²" min={0} step={0.5} onChange={(v) => updateMaterialConfig({ backsheetPerM2: v })} />
-                      <NumberInput label="Encapsulant" value={materialConfig.encapsulantPerM2} unit="EUR/m²" min={0} step={0.5} onChange={(v) => updateMaterialConfig({ encapsulantPerM2: v })} />
+                      <NumberInput label="Backsheet" value={materialConfig.backsheetPerM2} unit="EUR/m2" min={0} step={0.5} onChange={(v) => updateMaterialConfig({ backsheetPerM2: v })} />
+                      <NumberInput label="Encapsulant" value={materialConfig.encapsulantPerM2} unit="EUR/m2" min={0} step={0.5} onChange={(v) => updateMaterialConfig({ encapsulantPerM2: v })} />
                       <NumberInput label="Ribbon/cell" value={materialConfig.ribbonPerCell} unit="EUR" min={0} step={0.005} onChange={(v) => updateMaterialConfig({ ribbonPerCell: v })} />
                       <NumberInput label="Junction box" value={materialConfig.junctionBoxCost} unit="EUR" min={0} step={0.5} onChange={(v) => updateMaterialConfig({ junctionBoxCost: v })} />
                     </div>
