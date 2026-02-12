@@ -1,6 +1,7 @@
 import { useAppContext } from '../../context/AppContext';
 import type { SolarModule, GlassType, BacksheetType, CellLayout } from '../../models/solarModule';
 import { MODULE_COLOR_TYPES, TEXTURED_GLASS_EFFICIENCY } from '../../models/solarModule';
+import { DEFAULT_SPACING_CONFIG } from '../../models/production';
 
 const GLASS_TYPES: GlassType[] = ['tempered-3.2mm', 'tempered-2.0mm', 'anti-glare-3.2mm', 'custom'];
 const BACKSHEET_TYPES: BacksheetType[] = ['glass-glass', 'TPT', 'TPE', 'transparent', 'custom'];
@@ -120,9 +121,36 @@ function ModuleForm({ module }: { module: SolarModule }) {
         <div className="grid grid-cols-2 gap-2">
           <NumberInput label="Rows" value={module.cellLayout.rows} min={1} max={20} onChange={(v) => updateLayout({ rows: v })} />
           <NumberInput label="Columns" value={module.cellLayout.columns} min={1} max={20} onChange={(v) => updateLayout({ columns: v })} />
-          <NumberInput label="Spacing X" value={module.cellLayout.cellSpacingX} unit="mm" min={0} onChange={(v) => updateLayout({ cellSpacingX: v })} />
-          <NumberInput label="Spacing Y" value={module.cellLayout.cellSpacingY} unit="mm" min={0} onChange={(v) => updateLayout({ cellSpacingY: v })} />
         </div>
+        <label className="mt-2 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={module.useStandardSpacing}
+            onChange={(e) => {
+              update({ useStandardSpacing: e.target.checked });
+              if (e.target.checked) {
+                updateLayout({
+                  cellSpacingX: DEFAULT_SPACING_CONFIG.standardX,
+                  cellSpacingY: DEFAULT_SPACING_CONFIG.standardY,
+                });
+              }
+            }}
+            className="rounded"
+          />
+          Standard spacing
+          <span className="text-xs text-slate-400">
+            ({DEFAULT_SPACING_CONFIG.standardX}/{DEFAULT_SPACING_CONFIG.standardY} mm)
+          </span>
+        </label>
+        {!module.useStandardSpacing && (
+          <div className="mt-1 grid grid-cols-2 gap-2">
+            <NumberInput label="Spacing X" value={module.cellLayout.cellSpacingX} unit="mm" min={0} step={0.5} onChange={(v) => updateLayout({ cellSpacingX: v })} />
+            <NumberInput label="Spacing Y" value={module.cellLayout.cellSpacingY} unit="mm" min={0} step={0.5} onChange={(v) => updateLayout({ cellSpacingY: v })} />
+          </div>
+        )}
+        {!module.useStandardSpacing && (
+          <div className="mt-1 text-[10px] text-amber-600">Non-standard spacing increases production cost</div>
+        )}
         <label className="mt-2 flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -135,6 +163,44 @@ function ModuleForm({ module }: { module: SolarModule }) {
         <div className="mt-1 text-xs text-slate-400">
           Total cells: <span className="font-semibold text-slate-600">{module.totalCells}</span>
         </div>
+      </fieldset>
+
+      {/* String & Glass Options */}
+      <fieldset className="rounded border border-slate-200 p-2">
+        <legend className="px-1 text-xs font-semibold text-slate-600">String & Glass</legend>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={module.isStandardString}
+            onChange={(e) => update({ isStandardString: e.target.checked })}
+            className="rounded"
+          />
+          Standard string layout
+        </label>
+        {!module.isStandardString && (
+          <div className="mt-1 text-[10px] text-amber-600">Non-standard strings require machine re-setup</div>
+        )}
+        <label className="mt-2 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={module.stringsPrinted}
+            onChange={(e) => update({ stringsPrinted: e.target.checked })}
+            className="rounded"
+          />
+          Printed strings (colored)
+        </label>
+        <label className="mt-2 flex flex-col gap-1">
+          <span className="text-xs font-medium text-slate-500">Glass color process</span>
+          <select
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+            value={module.glassColorProcess}
+            onChange={(e) => update({ glassColorProcess: e.target.value as 'none' | 'morpho' | 'inkjet' })}
+          >
+            <option value="none">None (standard)</option>
+            <option value="morpho">Morpho color (structural)</option>
+            <option value="inkjet">Inkjet printed</option>
+          </select>
+        </label>
       </fieldset>
 
       {/* Power */}

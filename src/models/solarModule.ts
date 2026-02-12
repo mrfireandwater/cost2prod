@@ -89,6 +89,11 @@ export interface SolarModule {
   // Power computation inputs
   moduleColorType: string;  // ID from MODULE_COLOR_TYPES
   texturedGlass: boolean;
+  // Production flags
+  useStandardSpacing: boolean;
+  isStandardString: boolean;
+  stringsPrinted: boolean;
+  glassColorProcess: 'none' | 'morpho' | 'inkjet';
   // Calculated
   totalCells: number;
   powerWp: number;
@@ -129,6 +134,10 @@ export function createDefaultModule(id: string, name: string): SolarModule {
     encapsulantType: 'EVA',
     moduleColorType,
     texturedGlass,
+    useStandardSpacing: true,
+    isStandardString: true,
+    stringsPrinted: false,
+    glassColorProcess: 'none',
     totalCells,
     powerWp: computePower(totalCells, cellFormat, cellLayout.halfCut, moduleColorType, texturedGlass),
     color: '#1e3a5f',

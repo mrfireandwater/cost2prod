@@ -9,15 +9,29 @@ import {
 } from '../models/solarModule';
 import {
   DEFAULT_SECTIONS,
-  calculateCostsForModule,
+  DEFAULT_MATERIAL_CONFIG,
+  DEFAULT_STRING_CONFIG,
+  DEFAULT_SPACING_CONFIG,
+  DEFAULT_MARGIN_CONFIG,
+  calculateCosts,
   type ProductionSection,
+  type ProductionSubStep,
+  type MaterialConfig,
+  type StringConfig,
+  type SpacingConfig,
+  type MarginConfig,
   type SectionCost,
+  type ModuleCostParams,
 } from '../models/production';
 
 interface AppState {
   modules: SolarModule[];
   selectedModuleId: string | null;
   sections: ProductionSection[];
+  materialConfig: MaterialConfig;
+  stringConfig: StringConfig;
+  spacingConfig: SpacingConfig;
+  marginConfig: MarginConfig;
   // Derived
   selectedModule: SolarModule | null;
   sectionCosts: SectionCost[];
@@ -30,6 +44,11 @@ interface AppActions {
   updateModule: (id: string, updates: Partial<SolarModule>) => void;
   selectModule: (id: string | null) => void;
   updateSection: (id: string, updates: Partial<ProductionSection>) => void;
+  updateSubStep: (sectionId: string, subStepId: string, updates: Partial<ProductionSubStep>) => void;
+  updateMaterialConfig: (updates: Partial<MaterialConfig>) => void;
+  updateStringConfig: (updates: Partial<StringConfig>) => void;
+  updateSpacingConfig: (updates: Partial<SpacingConfig>) => void;
+  updateMarginConfig: (updates: Partial<MarginConfig>) => void;
 }
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
@@ -41,14 +60,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [sections, setSections] = useState<ProductionSection[]>(DEFAULT_SECTIONS);
+  const [materialConfig, setMaterialConfig] = useState<MaterialConfig>(DEFAULT_MATERIAL_CONFIG);
+  const [stringConfig, setStringConfig] = useState<StringConfig>(DEFAULT_STRING_CONFIG);
+  const [spacingConfig, setSpacingConfig] = useState<SpacingConfig>(DEFAULT_SPACING_CONFIG);
+  const [marginConfig, setMarginConfig] = useState<MarginConfig>(DEFAULT_MARGIN_CONFIG);
 
   const selectedModule = modules.find((m) => m.id === selectedModuleId) ?? null;
 
   // Calculate costs for selected module
   const { sectionCosts, totalCost } = (() => {
-    if (!selectedModule) return { sectionCosts: [], totalCost: 0 };
-    const areaM2 = (selectedModule.width * selectedModule.height) / 1_000_000;
-    return calculateCostsForModule(sections, selectedModule.totalCells, areaM2);
+    if (!selectedModule) return { sectionCosts: [] as SectionCost[], totalCost: 0 };
+    const params: ModuleCostParams = {
+      totalCells: selectedModule.totalCells,
+      areaM2: (selectedModule.width * selectedModule.height) / 1_000_000,
+      numStrings: selectedModule.cellLayout.columns,
+      cellType: selectedModule.cellType,
+      cellFormat: selectedModule.cellFormat,
+      glassType: selectedModule.glassType,
+      texturedGlass: selectedModule.texturedGlass,
+      glassColorProcess: selectedModule.glassColorProcess,
+      isStandardString: selectedModule.isStandardString,
+      stringsPrinted: selectedModule.stringsPrinted,
+      useStandardSpacing: selectedModule.useStandardSpacing,
+      marginTop: selectedModule.marginTop,
+      marginBottom: selectedModule.marginBottom,
+      marginLeft: selectedModule.marginLeft,
+      marginRight: selectedModule.marginRight,
+    };
+    return calculateCosts(sections, materialConfig, stringConfig, spacingConfig, marginConfig, params);
   })();
 
   const addModule = useCallback(() => {
@@ -107,12 +146,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
   }, []);
 
+  const updateSubStep = useCallback((sectionId: string, subStepId: string, updates: Partial<ProductionSubStep>) => {
+    setSections((prev) =>
+      prev.map((s) => {
+        if (s.id !== sectionId) return s;
+        return {
+          ...s,
+          subSteps: s.subSteps.map((ss) => (ss.id === subStepId ? { ...ss, ...updates } : ss)),
+        };
+      })
+    );
+  }, []);
+
+  const updateMaterialConfig = useCallback((updates: Partial<MaterialConfig>) => {
+    setMaterialConfig((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  const updateStringConfig = useCallback((updates: Partial<StringConfig>) => {
+    setStringConfig((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  const updateSpacingConfig = useCallback((updates: Partial<SpacingConfig>) => {
+    setSpacingConfig((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  const updateMarginConfig = useCallback((updates: Partial<MarginConfig>) => {
+    setMarginConfig((prev) => ({ ...prev, ...updates }));
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
         modules,
         selectedModuleId,
         sections,
+        materialConfig,
+        stringConfig,
+        spacingConfig,
+        marginConfig,
         selectedModule,
         sectionCosts,
         totalCost,
@@ -121,6 +192,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateModule,
         selectModule,
         updateSection,
+        updateSubStep,
+        updateMaterialConfig,
+        updateStringConfig,
+        updateSpacingConfig,
+        updateMarginConfig,
       }}
     >
       {children}
