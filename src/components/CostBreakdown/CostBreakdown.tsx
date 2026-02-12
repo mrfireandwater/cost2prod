@@ -1,7 +1,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useAppContext } from '../../context/AppContext';
 
-const COLORS = ['#3b82f6', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7', '#f97316', '#ef4444'];
+const COLORS = ['#6366f1', '#3b82f6', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7', '#f97316', '#ef4444'];
 
 export default function CostBreakdown() {
   const { sectionCosts, totalCost, selectedModule } = useAppContext();

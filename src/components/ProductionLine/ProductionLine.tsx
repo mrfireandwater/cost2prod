@@ -1,6 +1,7 @@
 import { useAppContext } from '../../context/AppContext';
 
 const SECTION_COLORS: Record<string, string> = {
+  sales: '#6366f1',
   planning: '#3b82f6',
   material: '#f59e0b',
   'string-production': '#22c55e',
@@ -109,31 +110,43 @@ export default function ProductionLine() {
                     </div>
 
                     {/* Cost breakdown within section */}
-                    <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-500">
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
                       <div>
                         Base: <span className="font-medium text-slate-600">{section.baseCostEur.toFixed(2)} EUR</span>
                       </div>
                       <div>
-                        Per cell: <span className="font-medium text-slate-600">{section.perCellCostEur.toFixed(2)} EUR</span>
-                      </div>
-                      <div>
-                        Per m2: <span className="font-medium text-slate-600">{section.perM2CostEur.toFixed(2)} EUR</span>
+                        Per module: <span className="font-medium text-slate-600">{section.perModuleCostEur.toFixed(2)} EUR</span>
                       </div>
                     </div>
 
-                    {/* Steps placeholder */}
-                    {section.steps.length > 0 && (
+                    {/* Sub-steps with machine/operator breakdown */}
+                    {section.subSteps.length > 0 && cost && (
                       <div className="mt-2 border-t border-slate-100 pt-2">
-                        {section.steps.map((step) => (
-                          <div key={step.id} className="text-xs text-slate-500 py-0.5">
-                            - {step.name}
-                          </div>
-                        ))}
+                        <table className="w-full text-[10px]">
+                          <thead>
+                            <tr className="text-slate-400">
+                              <th className="text-left font-medium py-0.5">Step</th>
+                              <th className="text-right font-medium py-0.5">Machine</th>
+                              <th className="text-right font-medium py-0.5">Operator</th>
+                              <th className="text-right font-medium py-0.5">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {cost.subStepCosts.map((ssc) => (
+                              <tr key={ssc.subStepId} className="text-slate-500">
+                                <td className="py-0.5">{ssc.subStepName}</td>
+                                <td className="py-0.5 text-right">{ssc.machineCost.toFixed(2)}</td>
+                                <td className="py-0.5 text-right">{ssc.operatorCost.toFixed(2)}</td>
+                                <td className="py-0.5 text-right font-medium text-slate-600">{ssc.totalCost.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     )}
-                    {section.steps.length === 0 && (
-                      <div className="mt-2 text-[10px] text-slate-300 italic">
-                        Sub-steps will be added later
+                    {section.subSteps.length === 0 && section.id === 'material' && (
+                      <div className="mt-2 text-[10px] text-slate-400 italic">
+                        Cost computed from BOM (glass, backsheet, encapsulant, ribbons, junction box)
                       </div>
                     )}
                   </div>
