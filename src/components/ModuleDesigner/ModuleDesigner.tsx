@@ -1,11 +1,9 @@
 import { useAppContext } from '../../context/AppContext';
-import type { SolarModule, CellType, CellFormat, GlassType, BacksheetType, FrameType, CellLayout } from '../../models/solarModule';
+import type { SolarModule, GlassType, BacksheetType, CellLayout } from '../../models/solarModule';
+import { MODULE_COLOR_TYPES, TEXTURED_GLASS_EFFICIENCY } from '../../models/solarModule';
 
-const CELL_TYPES: CellType[] = ['mono-PERC', 'mono-HJT', 'mono-TOPCon', 'poly', 'custom'];
-const CELL_FORMATS: CellFormat[] = ['M6-166mm', 'M10-182mm', 'M12-210mm', 'custom'];
 const GLASS_TYPES: GlassType[] = ['tempered-3.2mm', 'tempered-2.0mm', 'anti-glare-3.2mm', 'custom'];
 const BACKSHEET_TYPES: BacksheetType[] = ['glass-glass', 'TPT', 'TPE', 'transparent', 'custom'];
-const FRAME_TYPES: FrameType[] = ['aluminium-silver', 'aluminium-black', 'frameless', 'custom'];
 
 function NumberInput({
   label,
@@ -79,6 +77,10 @@ function ModuleForm({ module }: { module: SolarModule }) {
   const updateLayout = (updates: Partial<CellLayout>) =>
     update({ cellLayout: { ...module.cellLayout, ...updates } });
 
+  const colorType = MODULE_COLOR_TYPES.find((c) => c.id === module.moduleColorType);
+  const colorFactor = colorType?.factor ?? 1.0;
+  const glassFactor = module.texturedGlass ? TEXTURED_GLASS_EFFICIENCY : 1.0;
+
   return (
     <div className="space-y-4">
       {/* Name & Color */}
@@ -112,17 +114,6 @@ function ModuleForm({ module }: { module: SolarModule }) {
         </div>
       </fieldset>
 
-      {/* Cell Config */}
-      <fieldset className="rounded border border-slate-200 p-2">
-        <legend className="px-1 text-xs font-semibold text-slate-600">Cell Configuration</legend>
-        <div className="grid grid-cols-2 gap-2">
-          <SelectInput label="Cell Type" value={module.cellType} options={CELL_TYPES} onChange={(v) => update({ cellType: v })} />
-          <SelectInput label="Cell Format" value={module.cellFormat} options={CELL_FORMATS} onChange={(v) => update({ cellFormat: v })} />
-          <NumberInput label="Cell Size" value={module.cellSizeMm} unit="mm" min={50} max={250} onChange={(v) => update({ cellSizeMm: v })} />
-          <NumberInput label="Power" value={module.powerWp} unit="Wp" min={0} onChange={(v) => update({ powerWp: v })} />
-        </div>
-      </fieldset>
-
       {/* Cell Layout */}
       <fieldset className="rounded border border-slate-200 p-2">
         <legend className="px-1 text-xs font-semibold text-slate-600">Cell Layout (Strings)</legend>
@@ -146,14 +137,61 @@ function ModuleForm({ module }: { module: SolarModule }) {
         </div>
       </fieldset>
 
-      {/* Margins */}
-      <fieldset className="rounded border border-slate-200 p-2">
-        <legend className="px-1 text-xs font-semibold text-slate-600">Margins (edge to cells)</legend>
-        <div className="grid grid-cols-2 gap-2">
-          <NumberInput label="Top" value={module.marginTop} unit="mm" min={0} onChange={(v) => update({ marginTop: v })} />
-          <NumberInput label="Bottom" value={module.marginBottom} unit="mm" min={0} onChange={(v) => update({ marginBottom: v })} />
-          <NumberInput label="Left" value={module.marginLeft} unit="mm" min={0} onChange={(v) => update({ marginLeft: v })} />
-          <NumberInput label="Right" value={module.marginRight} unit="mm" min={0} onChange={(v) => update({ marginRight: v })} />
+      {/* Power */}
+      <fieldset className="rounded border border-blue-200 bg-blue-50/30 p-2">
+        <legend className="px-1 text-xs font-semibold text-blue-700">Power</legend>
+
+        {/* Module color type - two column dropdown */}
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-slate-500">Module Color (efficiency)</span>
+          <select
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none font-mono"
+            value={module.moduleColorType}
+            onChange={(e) => update({ moduleColorType: e.target.value })}
+          >
+            {MODULE_COLOR_TYPES.map((ct) => (
+              <option key={ct.id} value={ct.id}>
+                {ct.label.padEnd(28)} {(ct.factor * 100).toFixed(0)}%
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* Textured glass */}
+        <label className="mt-2 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={module.texturedGlass}
+            onChange={(e) => update({ texturedGlass: e.target.checked })}
+            className="rounded"
+          />
+          Textured glass
+          <span className="text-xs text-slate-400">
+            ({(TEXTURED_GLASS_EFFICIENCY * 100).toFixed(0)}% efficiency)
+          </span>
+        </label>
+
+        {/* Computed power display */}
+        <div className="mt-3 rounded bg-white border border-blue-200 p-2">
+          <div className="text-xs text-slate-500 space-y-1">
+            <div className="flex justify-between">
+              <span>Cells:</span>
+              <span className="font-medium text-slate-700">{module.totalCells}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Color factor:</span>
+              <span className="font-medium text-slate-700">{(colorFactor * 100).toFixed(0)}%</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Glass factor:</span>
+              <span className="font-medium text-slate-700">{(glassFactor * 100).toFixed(0)}%</span>
+            </div>
+            <hr className="border-slate-200" />
+            <div className="flex justify-between text-sm font-bold">
+              <span className="text-blue-700">Power:</span>
+              <span className="text-blue-700">{module.powerWp} Wp</span>
+            </div>
+          </div>
         </div>
       </fieldset>
 
@@ -163,11 +201,16 @@ function ModuleForm({ module }: { module: SolarModule }) {
         <div className="grid grid-cols-2 gap-2">
           <SelectInput label="Glass" value={module.glassType} options={GLASS_TYPES} onChange={(v) => update({ glassType: v })} />
           <SelectInput label="Backsheet" value={module.backsheetType} options={BACKSHEET_TYPES} onChange={(v) => update({ backsheetType: v })} />
-          <SelectInput label="Frame" value={module.frameType} options={FRAME_TYPES} onChange={(v) => update({ frameType: v })} />
           <SelectInput label="Encapsulant" value={module.encapsulantType} options={['EVA', 'POE', 'EPE']} onChange={(v) => update({ encapsulantType: v as 'EVA' | 'POE' | 'EPE' })} />
-          <NumberInput label="Ribbon Width" value={module.ribbonWidthMm} unit="mm" min={0.1} step={0.1} onChange={(v) => update({ ribbonWidthMm: v })} />
-          <NumberInput label="Ribbons/Cell" value={module.ribbonCount} min={1} max={12} onChange={(v) => update({ ribbonCount: v })} />
-          <NumberInput label="Junction Boxes" value={module.junctionBoxCount} min={1} max={4} onChange={(v) => update({ junctionBoxCount: v })} />
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-slate-500">Ribbon Color</span>
+            <input
+              type="color"
+              className="h-[30px] w-10 cursor-pointer rounded border border-slate-300"
+              value={module.ribbonColor}
+              onChange={(e) => update({ ribbonColor: e.target.value })}
+            />
+          </label>
         </div>
       </fieldset>
     </div>

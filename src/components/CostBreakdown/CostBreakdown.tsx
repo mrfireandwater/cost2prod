@@ -62,7 +62,7 @@ export default function CostBreakdown() {
               <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-30} textAnchor="end" height={60} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip
-                formatter={(value: number) => [`${value.toFixed(2)} EUR`, 'Cost']}
+                formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)} EUR`, 'Cost']}
                 contentStyle={{ fontSize: 12 }}
               />
               <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
@@ -86,7 +86,7 @@ export default function CostBreakdown() {
                 cx="50%"
                 cy="50%"
                 outerRadius={80}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                 labelLine={{ strokeWidth: 1 }}
                 fontSize={9}
               >
@@ -94,7 +94,7 @@ export default function CostBreakdown() {
                   <Cell key={index} fill={entry.fill} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value: number) => [`${value.toFixed(2)} EUR`]} contentStyle={{ fontSize: 12 }} />
+              <Tooltip formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)} EUR`]} contentStyle={{ fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
             </PieChart>
           </ResponsiveContainer>
