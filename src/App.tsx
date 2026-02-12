@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { AppProvider } from './context/AppContext';
 import ModuleDesigner from './components/ModuleDesigner/ModuleDesigner';
-import FacadeView from './components/FacadeView/FacadeView';
 import ModulePreview from './components/ModulePreview/ModulePreview';
 import ProductionLine from './components/ProductionLine/ProductionLine';
 import CostBreakdown from './components/CostBreakdown/CostBreakdown';
+import Settings from './components/Settings/Settings';
 
-type Tab = 'design' | 'production';
+type Tab = 'design' | 'production' | 'settings';
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState<Tab>('design');
@@ -35,7 +35,7 @@ function AppContent() {
                 : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
             }`}
           >
-            Module Design & Facade
+            Module Design
           </button>
           <button
             onClick={() => setActiveTab('production')}
@@ -46,6 +46,16 @@ function AppContent() {
             }`}
           >
             Production & Costs
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              activeTab === 'settings'
+                ? 'bg-blue-600 text-white'
+                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+            }`}
+          >
+            Settings
           </button>
         </nav>
       </header>
@@ -59,17 +69,12 @@ function AppContent() {
               <ModuleDesigner />
             </div>
 
-            {/* Center: Facade View */}
-            <div className="flex-1 overflow-hidden bg-white border-r border-slate-200">
-              <FacadeView />
-            </div>
-
             {/* Right: Module Preview */}
-            <div className="w-96 flex-shrink-0 overflow-hidden bg-white">
+            <div className="flex-1 overflow-hidden bg-white">
               <ModulePreview />
             </div>
           </>
-        ) : (
+        ) : activeTab === 'production' ? (
           <>
             {/* Left: Production Line */}
             <div className="flex-1 overflow-hidden border-r border-slate-200 bg-white">
@@ -81,6 +86,10 @@ function AppContent() {
               <CostBreakdown />
             </div>
           </>
+        ) : (
+          <div className="flex-1 overflow-hidden bg-white">
+            <Settings />
+          </div>
         )}
       </main>
 

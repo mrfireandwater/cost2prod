@@ -1,13 +1,22 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { type SolarModule, createDefaultModule } from '../models/solarModule';
-import { type FacadeConfig, createDefaultFacade } from '../models/facade';
-import { DEFAULT_SECTIONS, calculateCostsForModule, type ProductionSection, type SectionCost } from '../models/production';
+import {
+  type SolarModule,
+  createDefaultModule,
+  computeTotalCells,
+  computePower,
+  FORMAT_SIZE_MAP,
+} from '../models/solarModule';
+import {
+  DEFAULT_SECTIONS,
+  calculateCostsForModule,
+  type ProductionSection,
+  type SectionCost,
+} from '../models/production';
 
 interface AppState {
   modules: SolarModule[];
   selectedModuleId: string | null;
-  facade: FacadeConfig;
   sections: ProductionSection[];
   // Derived
   selectedModule: SolarModule | null;
@@ -20,8 +29,6 @@ interface AppActions {
   removeModule: (id: string) => void;
   updateModule: (id: string, updates: Partial<SolarModule>) => void;
   selectModule: (id: string | null) => void;
-  updateFacade: (updates: Partial<FacadeConfig>) => void;
-  assignModuleToSlot: (row: number, col: number, moduleId: string) => void;
   updateSection: (id: string, updates: Partial<ProductionSection>) => void;
 }
 
@@ -33,7 +40,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return [m];
   });
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
-  const [facade, setFacade] = useState<FacadeConfig>(createDefaultFacade);
   const [sections, setSections] = useState<ProductionSection[]>(DEFAULT_SECTIONS);
 
   const selectedModule = modules.find((m) => m.id === selectedModuleId) ?? null;
@@ -54,10 +60,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const removeModule = useCallback((id: string) => {
     setModules((prev) => prev.filter((m) => m.id !== id));
     setSelectedModuleId((prev) => (prev === id ? null : prev));
-    setFacade((prev) => ({
-      ...prev,
-      slots: prev.slots.map((s) => (s.moduleId === id ? { ...s, moduleId: '' } : s)),
-    }));
   }, []);
 
   const updateModule = useCallback((id: string, updates: Partial<SolarModule>) => {
@@ -65,11 +67,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
       prev.map((m) => {
         if (m.id !== id) return m;
         const updated = { ...m, ...updates };
+
+        // Auto-set cellSizeMm when format changes
+        if (updates.cellFormat) {
+          updated.cellSizeMm = FORMAT_SIZE_MAP[updates.cellFormat] ?? m.cellSizeMm;
+        }
+
         // Recompute totalCells if layout changed
         if (updates.cellLayout) {
-          const layout = updates.cellLayout;
-          updated.totalCells = layout.rows * layout.columns * (layout.halfCut ? 2 : 1);
+          updated.totalCells = computeTotalCells(updates.cellLayout);
         }
+
+        // Recompute power whenever relevant fields change
+        if (
+          updates.cellLayout ||
+          updates.cellFormat ||
+          updates.moduleColorType !== undefined ||
+          updates.texturedGlass !== undefined
+        ) {
+          updated.powerWp = computePower(
+            updated.totalCells,
+            updated.cellFormat,
+            updated.cellLayout.halfCut,
+            updated.moduleColorType,
+            updated.texturedGlass
+          );
+        }
+
         return updated;
       })
     );
@@ -77,35 +101,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const selectModule = useCallback((id: string | null) => {
     setSelectedModuleId(id);
-  }, []);
-
-  const updateFacade = useCallback((updates: Partial<FacadeConfig>) => {
-    setFacade((prev) => {
-      const next = { ...prev, ...updates };
-      // Rebuild slots if grid size changed
-      if (updates.rows !== undefined || updates.columns !== undefined) {
-        const rows = updates.rows ?? prev.rows;
-        const cols = updates.columns ?? prev.columns;
-        const newSlots = [];
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            const existing = prev.slots.find((s) => s.row === r && s.col === c);
-            newSlots.push(existing ?? { moduleId: '', row: r, col: c });
-          }
-        }
-        next.slots = newSlots;
-      }
-      return next;
-    });
-  }, []);
-
-  const assignModuleToSlot = useCallback((row: number, col: number, moduleId: string) => {
-    setFacade((prev) => ({
-      ...prev,
-      slots: prev.slots.map((s) =>
-        s.row === row && s.col === col ? { ...s, moduleId } : s
-      ),
-    }));
   }, []);
 
   const updateSection = useCallback((id: string, updates: Partial<ProductionSection>) => {
@@ -117,7 +112,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       value={{
         modules,
         selectedModuleId,
-        facade,
         sections,
         selectedModule,
         sectionCosts,
@@ -126,8 +120,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         removeModule,
         updateModule,
         selectModule,
-        updateFacade,
-        assignModuleToSlot,
         updateSection,
       }}
     >
