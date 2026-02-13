@@ -6,6 +6,8 @@ import {
   createDefaultModule,
   computeSubmoduleCells,
   computeModulePower,
+  computeJunctionBoxCount,
+  getGlassTypeDef,
 } from '../models/solarModule';
 import {
   DEFAULT_SECTIONS,
@@ -14,6 +16,7 @@ import {
   DEFAULT_SPACING_CONFIG,
   DEFAULT_MARGIN_CONFIG,
   calculateCosts,
+  computeOptimalCost,
   type ProductionSection,
   type ProductionSubStep,
   type MaterialConfig,
@@ -36,6 +39,9 @@ interface AppState {
   selectedModule: SolarModule | null;
   sectionCosts: SectionCost[];
   totalCost: number;
+  optimalCost: number;
+  costOptimizationDelta: number; // current - optimal in CHF
+  costOptimizationRatio: number; // 0=green(optimal) to 1=red(far from optimal)
 }
 
 interface AppActions {
@@ -54,12 +60,6 @@ interface AppActions {
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
 
-// Derive glass color process from frontglass color
-function deriveGlassColorProcess(frontglassColor: string): 'none' | 'morpho' | 'inkjet' {
-  if (frontglassColor.startsWith('solarcolor-')) return 'morpho';
-  return 'none';
-}
-
 // Recompute derived fields on a module
 function recompute(m: SolarModule): SolarModule {
   const sub1Cells = computeSubmoduleCells(m.submodule1);
@@ -67,7 +67,8 @@ function recompute(m: SolarModule): SolarModule {
   return {
     ...m,
     totalCells: sub1Cells + sub2Cells,
-    powerWp: computeModulePower(m.submodule1, m.submodule2Enabled, m.submodule2, m.frontglassColor, m.frontglassTexture),
+    powerWp: computeModulePower(m.submodule1, m.submodule2Enabled, m.submodule2, m.moduleColorId, m.frontGlassId),
+    junctionBoxCount: computeJunctionBoxCount(m.submodule1, m.submodule2Enabled, m.submodule2),
   };
 }
 
@@ -85,28 +86,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const selectedModule = modules.find((m) => m.id === selectedModuleId) ?? null;
 
-  // Calculate costs for selected module
-  const { sectionCosts, totalCost } = (() => {
-    if (!selectedModule) return { sectionCosts: [] as SectionCost[], totalCost: 0 };
-    const sub1 = selectedModule.submodule1;
-    const params: ModuleCostParams = {
-      totalCells: selectedModule.totalCells,
-      areaM2: (selectedModule.width * selectedModule.height) / 1_000_000,
-      numStrings: sub1.stringAmount + (selectedModule.submodule2Enabled ? selectedModule.submodule2.stringAmount : 0),
-      cellType: sub1.cellType,
-      cellFormat: sub1.cellFormat,
-      glassType: selectedModule.frontglassTexture === 'anti-glare' ? 'anti-glare-3.2mm' : 'tempered-3.2mm',
-      texturedGlass: selectedModule.frontglassTexture === 'textured',
-      glassColorProcess: deriveGlassColorProcess(selectedModule.frontglassColor),
+  // Build cost params from the selected module
+  function buildCostParams(mod: SolarModule): ModuleCostParams {
+    const sub1 = mod.submodule1;
+    const frontGlass = getGlassTypeDef(mod.frontGlassId);
+    const backGlass = getGlassTypeDef(mod.backGlassId);
+    return {
+      totalCells: mod.totalCells,
+      areaM2: (mod.width * mod.height) / 1_000_000,
+      numStrings: sub1.stringAmount + (mod.submodule2Enabled ? mod.submodule2.stringAmount : 0),
+      cellTypeId: sub1.cellTypeId,
+      frontGlassId: mod.frontGlassId,
+      backGlassId: mod.backGlassId,
+      frontGlassPricePerM2: frontGlass.priceCHFPerM2,
+      backGlassPricePerM2: backGlass.priceCHFPerM2,
       isStandardString: sub1.standardLayout,
-      stringsPrinted: selectedModule.frontglassColor.startsWith('solarcolor-'),
+      stringsPrinted: mod.moduleColorId.startsWith('solarcolor-'),
       useStandardSpacing: sub1.standardLayout,
       marginTop: sub1.distanceToBorderY,
       marginBottom: sub1.distanceToBorderY,
       marginLeft: sub1.distanceToBorderX,
       marginRight: sub1.distanceToBorderX,
+      junctionBoxCount: mod.junctionBoxCount,
     };
-    return calculateCosts(sections, materialConfig, stringConfig, spacingConfig, marginConfig, params);
+  }
+
+  // Calculate costs for selected module
+  const { sectionCosts, totalCost, optimalCost, costOptimizationDelta, costOptimizationRatio } = (() => {
+    if (!selectedModule) return { sectionCosts: [] as SectionCost[], totalCost: 0, optimalCost: 0, costOptimizationDelta: 0, costOptimizationRatio: 0 };
+    const params = buildCostParams(selectedModule);
+    const result = calculateCosts(sections, materialConfig, stringConfig, spacingConfig, marginConfig, params);
+    const optimal = computeOptimalCost(sections, materialConfig, stringConfig, spacingConfig, marginConfig, params, selectedModule.powerWp);
+    const delta = Math.max(0, result.totalCost - optimal);
+    // Ratio: 0 = at optimal, 1 = 50+ CHF above optimal
+    const ratio = Math.min(1, delta / 50);
+    return {
+      ...result,
+      optimalCost: Math.round(optimal * 100) / 100,
+      costOptimizationDelta: Math.round(delta * 100) / 100,
+      costOptimizationRatio: ratio,
+    };
   })();
 
   const addModule = useCallback(() => {
@@ -188,6 +207,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         selectedModule,
         sectionCosts,
         totalCost,
+        optimalCost,
+        costOptimizationDelta,
+        costOptimizationRatio,
         addModule,
         removeModule,
         updateModule,

@@ -1,9 +1,9 @@
 import React from 'react';
 import { useAppContext } from '../../context/AppContext';
 import type { SolarModule, SubmoduleConfig } from '../../models/solarModule';
-import { MODULE_COLOR_TYPES, BACKGLASS_COLOR_OPTIONS, FORMAT_SIZE_MAP } from '../../models/solarModule';
+import { MODULE_COLOR_TYPES, getCellTypeDef } from '../../models/solarModule';
 
-// Render a single submodule's cell matrix, ribbons, and cross connectors within a given region
+// Render a single submodule's cell matrix, ribbons, and cross connectors
 function SubmoduleSVG({
   sub,
   module,
@@ -19,17 +19,21 @@ function SubmoduleSVG({
   regionX: number;
   regionW: number;
 }) {
+  const cellDef = getCellTypeDef(sub.cellTypeId);
   const marginX = sub.distanceToBorderX;
   const marginY = sub.distanceToBorderY;
 
   const activeWidth = regionW - 2 * marginX;
   const activeHeight = regionH - 2 * marginY;
 
-  const totalRows = sub.halfCut ? sub.cellsPerString * 2 : sub.cellsPerString;
+  // Cell units: cellsPerString = number of cell units
+  // If halfCut, each unit is physically half a cell (shorter), but still counts as 1
+  const totalRows = sub.cellsPerString; // cell units per string
   const totalCols = sub.stringAmount;
 
-  const cellSizeMm = FORMAT_SIZE_MAP[sub.cellFormat] ?? 182;
+  const cellSizeMm = cellDef.sizeMm;
   const cellW = cellSizeMm;
+  // If half-cut, the physical cell height is half the cell size
   const cellH = sub.halfCut ? cellSizeMm / 2 : cellSizeMm;
 
   // Center the cell matrix within the active area
@@ -38,14 +42,22 @@ function SubmoduleSVG({
   const offsetX = regionX + marginX + (activeWidth - matrixW) / 2;
   const offsetY = regionY + marginY + (activeHeight - matrixH) / 2;
 
-  // Frontglass color for cells
-  const colorType = MODULE_COLOR_TYPES.find((c) => c.id === module.frontglassColor);
+  // Cell color from module color
+  const colorType = MODULE_COLOR_TYPES.find((c) => c.id === module.moduleColorId);
   const cellColor = colorType?.displayColor ?? '#1e3a5f';
 
   // Ribbon/connector color
   const ribbonColor = sub.blackRibbonsAndConnectors ? '#000000' : '#c0c0c0';
 
   const elements: React.ReactElement[] = [];
+
+  // Apply rotation transform
+  const centerX = regionX + regionW / 2;
+  const centerY = regionY + regionH / 2;
+  const rotation = sub.rotation;
+  const groupTransform = rotation !== 0
+    ? `rotate(${rotation}, ${centerX}, ${centerY})`
+    : undefined;
 
   // Cells + ribbons
   for (let r = 0; r < totalRows; r++) {
@@ -135,15 +147,69 @@ function SubmoduleSVG({
     );
   }
 
+  return <g transform={groupTransform}>{elements}</g>;
+}
+
+// Render junction boxes along the right side, one for every 2 strings
+function JunctionBoxesSVG({
+  sub,
+  regionY,
+  regionH,
+  regionW,
+}: {
+  sub: SubmoduleConfig;
+  regionY: number;
+  regionH: number;
+  regionW: number;
+}) {
+  const jbCount = Math.floor(sub.stringAmount / 2) + 1;
+  const jbWidth = 20;
+  const jbHeight = 40;
+  const jbX = regionW - jbWidth - 3;
+  const elements: React.ReactElement[] = [];
+
+  for (let i = 0; i < jbCount; i++) {
+    // Distribute evenly along the right side of the region
+    const spacing = regionH / (jbCount + 1);
+    const jbY = regionY + spacing * (i + 1) - jbHeight / 2;
+
+    elements.push(
+      <g key={`jbox-${i}`}>
+        <rect
+          x={jbX}
+          y={jbY}
+          width={jbWidth}
+          height={jbHeight}
+          fill="#374151"
+          stroke="#6b7280"
+          strokeWidth={1}
+          rx={3}
+        />
+        <text
+          x={jbX + jbWidth / 2}
+          y={jbY + jbHeight / 2 + 3}
+          textAnchor="middle"
+          fontSize={6}
+          fill="#9ca3af"
+        >
+          J-Box
+        </text>
+      </g>
+    );
+  }
+
   return <>{elements}</>;
 }
 
 function ModuleSVG({ module }: { module: SolarModule }) {
   const { width, height } = module;
 
-  // Backglass color for background
-  const bgColor =
-    BACKGLASS_COLOR_OPTIONS.find((bc) => bc.id === module.backglassColor)?.displayColor ?? '#0f172a';
+  // Backglass: use white as default background
+  const bgColor = '#f1f5f9';
+
+  // Module color overlay
+  const moduleColor = MODULE_COLOR_TYPES.find((c) => c.id === module.moduleColorId);
+  const overlayColor = moduleColor?.displayColor ?? '#1e3a5f';
 
   // Expand viewBox for annotations
   const padRight = 40;
@@ -152,38 +218,9 @@ function ModuleSVG({ module }: { module: SolarModule }) {
 
   // Determine submodule regions
   const sub2On = module.submodule2Enabled;
-  const gap = sub2On ? 10 : 0; // gap between submodules
+  const gap = sub2On ? 10 : 0;
   const sub1H = sub2On ? (height - gap) / 2 : height;
   const sub2H = sub2On ? (height - gap) / 2 : 0;
-
-  // Junction box: connect to submodule1's middle string connection
-  const sub1 = module.submodule1;
-  const s1CellSize = FORMAT_SIZE_MAP[sub1.cellFormat] ?? 182;
-  const s1CellW = s1CellSize;
-  const s1CellH = sub1.halfCut ? s1CellSize / 2 : s1CellSize;
-  const s1TotalRows = sub1.halfCut ? sub1.cellsPerString * 2 : sub1.cellsPerString;
-  const s1TotalCols = sub1.stringAmount;
-  const s1MatrixW = s1TotalCols * s1CellW + (s1TotalCols - 1) * sub1.distanceBetweenStrings;
-  const s1MatrixH = s1TotalRows * s1CellH + (s1TotalRows - 1) * sub1.distanceBetweenCells;
-  const s1ActiveW = width - 2 * sub1.distanceToBorderX;
-  const s1ActiveH = sub1H - 2 * sub1.distanceToBorderY;
-  const s1OffsetX = sub1.distanceToBorderX + (s1ActiveW - s1MatrixW) / 2;
-  const s1OffsetY = sub1.distanceToBorderY + (s1ActiveH - s1MatrixH) / 2;
-
-  const jbWidth = 25;
-  const jbHeight = 60;
-  const middleConnIdx = Math.floor((s1TotalCols - 1) / 2);
-  const isMiddleBottom = middleConnIdx % 2 === 0;
-  const jbEdgeY = isMiddleBottom ? s1OffsetY + s1MatrixH : s1OffsetY;
-  const jbY = jbEdgeY - jbHeight / 2;
-  const jbX = width - jbWidth - 2;
-
-  const connY = isMiddleBottom ? s1OffsetY + s1MatrixH - 1 : s1OffsetY + 1;
-  const connStartX =
-    s1OffsetX +
-    middleConnIdx * (s1CellW + sub1.distanceBetweenStrings) +
-    s1CellW +
-    sub1.distanceBetweenStrings / 2;
 
   return (
     <svg viewBox={viewBox} className="h-full w-full" preserveAspectRatio="xMidYMid meet">
@@ -195,10 +232,10 @@ function ModuleSVG({ module }: { module: SolarModule }) {
 
       {/* Submodule 1 active area */}
       <rect
-        x={sub1.distanceToBorderX}
-        y={sub1.distanceToBorderY}
-        width={width - 2 * sub1.distanceToBorderX}
-        height={sub1H - 2 * sub1.distanceToBorderY}
+        x={module.submodule1.distanceToBorderX}
+        y={module.submodule1.distanceToBorderY}
+        width={width - 2 * module.submodule1.distanceToBorderX}
+        height={sub1H - 2 * module.submodule1.distanceToBorderY}
         fill="none"
         stroke="#3b82f6"
         strokeWidth={0.5}
@@ -213,6 +250,14 @@ function ModuleSVG({ module }: { module: SolarModule }) {
         regionY={0}
         regionH={sub1H}
         regionX={0}
+        regionW={width}
+      />
+
+      {/* Junction boxes for submodule 1 (right side) */}
+      <JunctionBoxesSVG
+        sub={module.submodule1}
+        regionY={0}
+        regionH={sub1H}
         regionW={width}
       />
 
@@ -252,41 +297,28 @@ function ModuleSVG({ module }: { module: SolarModule }) {
             regionX={0}
             regionW={width}
           />
+
+          {/* Junction boxes for submodule 2 */}
+          <JunctionBoxesSVG
+            sub={module.submodule2}
+            regionY={sub1H + gap}
+            regionH={sub2H}
+            regionW={width}
+          />
         </>
       )}
 
-      {/* Junction box connection */}
-      <line
-        x1={connStartX}
-        y1={connY}
-        x2={jbX}
-        y2={jbY + jbHeight / 2}
-        stroke="#6b7280"
-        strokeWidth={1.5}
-        strokeDasharray="3 2"
-        opacity={0.6}
-      />
-
-      {/* Junction box */}
+      {/* Semi-transparent module color overlay */}
       <rect
-        x={jbX}
-        y={jbY}
-        width={jbWidth}
-        height={jbHeight}
-        fill="#374151"
-        stroke="#6b7280"
-        strokeWidth={1}
-        rx={3}
+        x={0.5}
+        y={0.5}
+        width={width - 1}
+        height={height - 1}
+        fill={overlayColor}
+        opacity={0.15}
+        rx={1}
+        pointerEvents="none"
       />
-      <text
-        x={jbX + jbWidth / 2}
-        y={jbY + jbHeight / 2 + 3}
-        textAnchor="middle"
-        fontSize={7}
-        fill="#9ca3af"
-      >
-        J-Box
-      </text>
 
       {/* Dimension annotations */}
       <line

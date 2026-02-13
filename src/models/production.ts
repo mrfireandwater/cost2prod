@@ -4,8 +4,8 @@ export interface ProductionSubStep {
   name: string;
   machineMinutes: number;      // machine time per module (min)
   operatorMinutes: number;     // operator time per module (min)
-  machineCostPerHour: number;  // EUR/hr
-  operatorCostPerHour: number; // EUR/hr
+  machineCostPerHour: number;  // CHF/hr
+  operatorCostPerHour: number; // CHF/hr
 }
 
 // ── Section: a stage of the production line ──
@@ -15,28 +15,26 @@ export interface ProductionSection {
   icon: string;
   description: string;
   colorClass: string;
-  baseCostEur: number;        // fixed cost per module
-  perModuleCostEur: number;   // scales with module count
+  baseCostCHF: number;        // fixed cost per module
+  perModuleCostCHF: number;   // scales with module count
   subSteps: ProductionSubStep[];
 }
 
 // ── Material pricing config (BOM) ──
 export interface MaterialConfig {
-  glassBasePrices: Record<string, number>; // EUR/m² by glass type
-  texturedGlassPremium: number;  // additional EUR/m²
-  morphoColorPremium: number;    // additional EUR/m²
-  inkjetPrintPremium: number;    // additional EUR/m²
-  backsheetPerM2: number;        // EUR/m²
-  encapsulantPerM2: number;      // EUR/m²
-  ribbonPerCell: number;         // EUR/cell
-  junctionBoxCost: number;       // EUR per box
+  // Cell costs are now here (moved from string config)
+  cellPrices: Record<string, number>;  // CHF per cell, keyed by cellTypeId
+  // Glass costs are computed from GLASS_TYPE_DEFINITIONS (per m2)
+  backsheetPerM2: number;        // CHF/m2
+  encapsulantPerM2: number;      // CHF/m2
+  ribbonPerCell: number;         // CHF/cell
+  junctionBoxCost: number;       // CHF per box
 }
 
 // ── String production config ──
 export interface StringConfig {
-  nonStandardSetupCost: number;    // EUR, machine setup if non-standard
-  printingCostPerString: number;   // EUR, per string if printed
-  cellPrices: Record<string, Record<string, number>>; // EUR per cell [type][format]
+  nonStandardSetupCost: number;    // CHF, machine setup if non-standard
+  printingCostPerString: number;   // CHF, per string if printed
 }
 
 // ── Spacing config (standard vs non-standard) ──
@@ -59,15 +57,15 @@ export interface MarginConfig {
 // ════════════════════════════════════════════
 
 export const DEFAULT_SECTIONS: ProductionSection[] = [
-  // 1. Sales (before planning)
+  // 1. Sales
   {
     id: 'sales',
     name: 'Sales',
     icon: '💼',
     description: 'Customer acquisition, quote preparation, order processing',
     colorClass: 'bg-indigo-500',
-    baseCostEur: 5,
-    perModuleCostEur: 3,
+    baseCostCHF: 5,
+    perModuleCostCHF: 3,
     subSteps: [
       { id: 'customer-acq', name: 'Customer acquisition', machineMinutes: 2, operatorMinutes: 5, machineCostPerHour: 20, operatorCostPerHour: 35 },
       { id: 'quote-prep', name: 'Quote preparation', machineMinutes: 3, operatorMinutes: 8, machineCostPerHour: 30, operatorCostPerHour: 35 },
@@ -80,8 +78,8 @@ export const DEFAULT_SECTIONS: ProductionSection[] = [
     icon: '📐',
     description: 'Engineering design, layout planning, certifications',
     colorClass: 'bg-blue-500',
-    baseCostEur: 5,
-    perModuleCostEur: 0,
+    baseCostCHF: 5,
+    perModuleCostCHF: 0,
     subSteps: [
       { id: 'eng-design', name: 'Engineering design', machineMinutes: 5, operatorMinutes: 8, machineCostPerHour: 30, operatorCostPerHour: 40 },
       { id: 'certifications', name: 'Certifications', machineMinutes: 2, operatorMinutes: 5, machineCostPerHour: 20, operatorCostPerHour: 35 },
@@ -92,10 +90,10 @@ export const DEFAULT_SECTIONS: ProductionSection[] = [
     id: 'material',
     name: 'Material Cost',
     icon: '📦',
-    description: 'Glass, backsheet, encapsulant, ribbons, junction box',
+    description: 'Glass, cells, backsheet, encapsulant, ribbons, junction boxes',
     colorClass: 'bg-amber-500',
-    baseCostEur: 0,
-    perModuleCostEur: 0,
+    baseCostCHF: 0,
+    perModuleCostCHF: 0,
     subSteps: [],
   },
   // 4. String Production
@@ -105,72 +103,77 @@ export const DEFAULT_SECTIONS: ProductionSection[] = [
     icon: '🔗',
     description: 'Cell sorting, tabbing & stringing, inspection',
     colorClass: 'bg-green-500',
-    baseCostEur: 0,
-    perModuleCostEur: 0,
+    baseCostCHF: 0,
+    perModuleCostCHF: 0,
     subSteps: [
       { id: 'cell-sorting', name: 'Cell sorting', machineMinutes: 1.5, operatorMinutes: 1, machineCostPerHour: 60, operatorCostPerHour: 28 },
       { id: 'tabbing-stringing', name: 'Tabbing & stringing', machineMinutes: 3, operatorMinutes: 2, machineCostPerHour: 80, operatorCostPerHour: 28 },
       { id: 'string-inspection', name: 'String inspection', machineMinutes: 1.5, operatorMinutes: 1, machineCostPerHour: 50, operatorCostPerHour: 28 },
     ],
   },
-  // 5. Frontend (lay-up)
+  // 5. Frontend (lay-up) – new substeps per user spec
   {
     id: 'frontend',
     name: 'Frontend',
     icon: '🔲',
-    description: 'Glass cleaning, encapsulant layup, cell placement, EL test',
+    description: 'Front glass cleaning, layup, string placement, soldering, testing',
     colorClass: 'bg-cyan-500',
-    baseCostEur: 0,
-    perModuleCostEur: 0,
+    baseCostCHF: 0,
+    perModuleCostCHF: 0,
     subSteps: [
-      { id: 'glass-cleaning', name: 'Glass cleaning', machineMinutes: 2, operatorMinutes: 1, machineCostPerHour: 40, operatorCostPerHour: 28 },
-      { id: 'encapsulant-layup', name: 'Encapsulant layup', machineMinutes: 3, operatorMinutes: 2, machineCostPerHour: 40, operatorCostPerHour: 28 },
-      { id: 'cell-placement', name: 'Cell matrix placement', machineMinutes: 4, operatorMinutes: 3, machineCostPerHour: 60, operatorCostPerHour: 28 },
-      { id: 'el-test-pre', name: 'EL test (pre-lamination)', machineMinutes: 2, operatorMinutes: 1, machineCostPerHour: 50, operatorCostPerHour: 28 },
+      { id: 'fe-frontglass-clean', name: 'Clean front glass', machineMinutes: 2, operatorMinutes: 1, machineCostPerHour: 40, operatorCostPerHour: 28 },
+      { id: 'fe-frontglass-place', name: 'Place front glass', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 40, operatorCostPerHour: 28 },
+      { id: 'fe-solder-pads', name: 'Place solder pads', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 40, operatorCostPerHour: 28 },
+      { id: 'fe-strings-place', name: 'Place strings', machineMinutes: 3, operatorMinutes: 3, machineCostPerHour: 60, operatorCostPerHour: 28 },
+      { id: 'fe-cross-solder', name: 'Solder cross-connectors', machineMinutes: 2, operatorMinutes: 2, machineCostPerHour: 50, operatorCostPerHour: 28 },
+      { id: 'fe-tedlar-tape', name: 'Apply Tedlar tape', machineMinutes: 1, operatorMinutes: 1, machineCostPerHour: 30, operatorCostPerHour: 28 },
+      { id: 'fe-corner-tape', name: 'Tape corners at cross-connectors', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 30, operatorCostPerHour: 28 },
+      { id: 'fe-string-repair', name: 'String repair (if broken)', machineMinutes: 0, operatorMinutes: 3, machineCostPerHour: 0, operatorCostPerHour: 28 },
+      { id: 'fe-backfoil-place', name: 'Place back foil', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 40, operatorCostPerHour: 28 },
+      { id: 'fe-backglass-place', name: 'Place back glass', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 40, operatorCostPerHour: 28 },
+      { id: 'fe-el-test', name: 'EL test', machineMinutes: 2, operatorMinutes: 1, machineCostPerHour: 50, operatorCostPerHour: 28 },
+      { id: 'fe-trimming', name: 'Trim overhanging foil', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 40, operatorCostPerHour: 28 },
     ],
   },
-  // 6. Backend
+  // 6. Backend – new substeps per user spec
   {
     id: 'backend',
     name: 'Backend',
     icon: '⚙️',
-    description: 'Lamination, trimming, junction box mounting, curing',
+    description: 'Lamination aid removal, inspection, junction box, trimming, packaging',
     colorClass: 'bg-purple-500',
-    baseCostEur: 0,
-    perModuleCostEur: 0,
+    baseCostCHF: 0,
+    perModuleCostCHF: 0,
     subSteps: [
-      { id: 'lamination', name: 'Lamination', machineMinutes: 12, operatorMinutes: 2, machineCostPerHour: 60, operatorCostPerHour: 28 },
-      { id: 'trimming', name: 'Trimming', machineMinutes: 2, operatorMinutes: 2, machineCostPerHour: 40, operatorCostPerHour: 28 },
-      { id: 'jbox-mounting', name: 'Junction box mounting', machineMinutes: 3, operatorMinutes: 3, machineCostPerHour: 40, operatorCostPerHour: 28 },
-      { id: 'curing', name: 'Curing', machineMinutes: 8, operatorMinutes: 1, machineCostPerHour: 30, operatorCostPerHour: 28 },
+      { id: 'be-remove-aids', name: 'Remove lamination aids & tape', machineMinutes: 0, operatorMinutes: 2, machineCostPerHour: 0, operatorCostPerHour: 28 },
+      { id: 'be-visual-inspect', name: 'Visual inspection', machineMinutes: 0, operatorMinutes: 2, machineCostPerHour: 0, operatorCostPerHour: 28 },
+      { id: 'be-el-test', name: 'EL test', machineMinutes: 2, operatorMinutes: 1, machineCostPerHour: 50, operatorCostPerHour: 28 },
+      { id: 'be-batch-modules', name: 'Batch modules', machineMinutes: 0, operatorMinutes: 1, machineCostPerHour: 0, operatorCostPerHour: 28 },
+      { id: 'be-rough-trimming', name: 'Rough trimming', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 40, operatorCostPerHour: 28 },
+      { id: 'be-cross-conn-bend', name: 'Remove & bend cross-connector tabs', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 30, operatorCostPerHour: 28 },
+      { id: 'be-jbox-pot', name: 'Pot junction box', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 40, operatorCostPerHour: 28 },
+      { id: 'be-jbox-place', name: 'Place junction box', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 40, operatorCostPerHour: 28 },
+      { id: 'be-jbox-solder', name: 'Solder junction box', machineMinutes: 2, operatorMinutes: 2, machineCostPerHour: 50, operatorCostPerHour: 28 },
+      { id: 'be-flash-test', name: 'Flash test module', machineMinutes: 2, operatorMinutes: 1, machineCostPerHour: 60, operatorCostPerHour: 28 },
+      { id: 'be-jbox-potting-fill', name: 'Fill junction box with potting compound', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 30, operatorCostPerHour: 28 },
+      { id: 'be-dry', name: 'Let dry', machineMinutes: 8, operatorMinutes: 0, machineCostPerHour: 10, operatorCostPerHour: 0 },
+      { id: 'be-clean-glass', name: 'Clean module glass', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 30, operatorCostPerHour: 28 },
+      { id: 'be-fine-trimming', name: 'Fine trimming of edges', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 40, operatorCostPerHour: 28 },
+      { id: 'be-jbox-lid', name: 'Place junction box lid', machineMinutes: 0, operatorMinutes: 1, machineCostPerHour: 0, operatorCostPerHour: 28 },
+      { id: 'be-arrange', name: 'Arrange modules', machineMinutes: 0, operatorMinutes: 2, machineCostPerHour: 0, operatorCostPerHour: 28 },
+      { id: 'be-backrails', name: 'Mount backrails', machineMinutes: 2, operatorMinutes: 3, machineCostPerHour: 40, operatorCostPerHour: 28 },
+      { id: 'be-pack', name: 'Package', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 30, operatorCostPerHour: 28 },
     ],
   },
-  // 7. Packaging
-  {
-    id: 'packaging',
-    name: 'Packaging',
-    icon: '📋',
-    description: 'Final EL test, flash test, visual inspection, labeling, palletizing',
-    colorClass: 'bg-orange-500',
-    baseCostEur: 2,
-    perModuleCostEur: 1,
-    subSteps: [
-      { id: 'el-test-final', name: 'Final EL test', machineMinutes: 2, operatorMinutes: 1, machineCostPerHour: 50, operatorCostPerHour: 28 },
-      { id: 'flash-test', name: 'Flash test', machineMinutes: 2, operatorMinutes: 1, machineCostPerHour: 60, operatorCostPerHour: 28 },
-      { id: 'visual-inspection', name: 'Visual inspection', machineMinutes: 0, operatorMinutes: 2, machineCostPerHour: 0, operatorCostPerHour: 28 },
-      { id: 'labeling', name: 'Labeling', machineMinutes: 1, operatorMinutes: 1, machineCostPerHour: 20, operatorCostPerHour: 28 },
-      { id: 'palletizing', name: 'Palletizing', machineMinutes: 1, operatorMinutes: 2, machineCostPerHour: 30, operatorCostPerHour: 28 },
-    ],
-  },
-  // 8. Shipment
+  // 7. Shipment (packaging section removed, shipment remains)
   {
     id: 'shipment',
     name: 'Shipment',
     icon: '🚚',
     description: 'Warehousing, logistics, transport, delivery',
     colorClass: 'bg-red-500',
-    baseCostEur: 3,
-    perModuleCostEur: 2,
+    baseCostCHF: 3,
+    perModuleCostCHF: 2,
     subSteps: [
       { id: 'warehousing', name: 'Warehousing', machineMinutes: 2, operatorMinutes: 2, machineCostPerHour: 30, operatorCostPerHour: 25 },
       { id: 'transport-prep', name: 'Transport preparation', machineMinutes: 1, operatorMinutes: 3, machineCostPerHour: 20, operatorCostPerHour: 25 },
@@ -179,15 +182,17 @@ export const DEFAULT_SECTIONS: ProductionSection[] = [
 ];
 
 export const DEFAULT_MATERIAL_CONFIG: MaterialConfig = {
-  glassBasePrices: {
-    'tempered-3.2mm': 10,
-    'tempered-2.0mm': 8,
-    'anti-glare-3.2mm': 14,
-    'custom': 10,
+  cellPrices: {
+    'G1-fully-black-a': 0.22,
+    'G1-totally-black-b': 0.30,
+    'G1-standard-blue-a': 0.20,
+    'G2-fully-black-a': 0.28,
+    'G2-totally-black-b': 0.38,
+    'G2-standard-blue-a': 0.25,
+    'G2-HJT-a': 0.52,
+    'G2-TOPCon-a': 0.34,
+    'custom': 0.28,
   },
-  texturedGlassPremium: 8,     // EUR/m² additional for textured
-  morphoColorPremium: 30,      // EUR/m² morpho / structural color
-  inkjetPrintPremium: 15,      // EUR/m² inkjet printed color
   backsheetPerM2: 4,
   encapsulantPerM2: 3.5,
   ribbonPerCell: 0.03,
@@ -195,15 +200,8 @@ export const DEFAULT_MATERIAL_CONFIG: MaterialConfig = {
 };
 
 export const DEFAULT_STRING_CONFIG: StringConfig = {
-  nonStandardSetupCost: 12,    // EUR, machine re-setup
-  printingCostPerString: 1.5,  // EUR per printed string
-  cellPrices: {
-    'mono-PERC':  { 'M6-166mm': 0.22, 'M10-182mm': 0.28, 'M12-210mm': 0.38, 'custom': 0.28 },
-    'mono-HJT':   { 'M6-166mm': 0.40, 'M10-182mm': 0.52, 'M12-210mm': 0.68, 'custom': 0.52 },
-    'mono-TOPCon': { 'M6-166mm': 0.26, 'M10-182mm': 0.34, 'M12-210mm': 0.45, 'custom': 0.34 },
-    'poly':        { 'M6-166mm': 0.15, 'M10-182mm': 0.19, 'M12-210mm': 0.25, 'custom': 0.19 },
-    'custom':      { 'M6-166mm': 0.22, 'M10-182mm': 0.28, 'M12-210mm': 0.38, 'custom': 0.28 },
-  },
+  nonStandardSetupCost: 12,    // CHF, machine re-setup
+  printingCostPerString: 1.5,  // CHF per printed string
 };
 
 export const DEFAULT_SPACING_CONFIG: SpacingConfig = {
@@ -213,10 +211,10 @@ export const DEFAULT_SPACING_CONFIG: SpacingConfig = {
 };
 
 export const DEFAULT_MARGIN_CONFIG: MarginConfig = {
-  standardMinMm: 25,           // >= 25 mm → standard cost
-  tightThresholdMm: 20,        // < 20 mm → tight cost
-  mediumCostFactor: 1.15,      // 20-24 mm → 15% surcharge
-  tightCostFactor: 1.35,       // < 20 mm → 35% surcharge
+  standardMinMm: 25,           // >= 25 mm -> standard cost
+  tightThresholdMm: 20,        // < 20 mm -> tight cost
+  mediumCostFactor: 1.15,      // 20-24 mm -> 15% surcharge
+  tightCostFactor: 1.35,       // < 20 mm -> 35% surcharge
 };
 
 // ════════════════════════════════════════════
@@ -247,12 +245,12 @@ export interface SectionCost {
 export interface ModuleCostParams {
   totalCells: number;
   areaM2: number;
-  numStrings: number;        // = columns
-  cellType: string;
-  cellFormat: string;
-  glassType: string;
-  texturedGlass: boolean;
-  glassColorProcess: 'none' | 'morpho' | 'inkjet';
+  numStrings: number;
+  cellTypeId: string;
+  frontGlassId: string;
+  backGlassId: string;
+  frontGlassPricePerM2: number;
+  backGlassPricePerM2: number;
   isStandardString: boolean;
   stringsPrinted: boolean;
   useStandardSpacing: boolean;
@@ -260,6 +258,7 @@ export interface ModuleCostParams {
   marginBottom: number;
   marginLeft: number;
   marginRight: number;
+  junctionBoxCount: number;
 }
 
 function computeSubStepCosts(subSteps: ProductionSubStep[]): { costs: SubStepCost[]; total: number } {
@@ -300,30 +299,26 @@ export function calculateCosts(
   const spacingFactor = params.useStandardSpacing ? 1.0 : spacingConfig.nonStandardCostFactor;
 
   const sectionCosts: SectionCost[] = sections.map((section) => {
-    let cost = section.baseCostEur + section.perModuleCostEur;
+    let cost = section.baseCostCHF + section.perModuleCostCHF;
     const { costs: subStepCosts, total: subStepTotal } = computeSubStepCosts(section.subSteps);
 
     switch (section.id) {
       case 'material': {
-        // BOM: glass
-        const glassBase = materialConfig.glassBasePrices[params.glassType] ?? 10;
-        let glassPricePerM2 = glassBase;
-        if (params.texturedGlass) glassPricePerM2 += materialConfig.texturedGlassPremium;
-        if (params.glassColorProcess === 'morpho') glassPricePerM2 += materialConfig.morphoColorPremium;
-        if (params.glassColorProcess === 'inkjet') glassPricePerM2 += materialConfig.inkjetPrintPremium;
-        cost += glassPricePerM2 * params.areaM2;
+        // BOM: cells (moved here from string production)
+        const cellPrice = materialConfig.cellPrices[params.cellTypeId] ?? 0.28;
+        cost += cellPrice * params.totalCells;
+        // BOM: glass (front + back)
+        cost += params.frontGlassPricePerM2 * params.areaM2;
+        cost += params.backGlassPricePerM2 * params.areaM2;
         // BOM: other
         cost += materialConfig.backsheetPerM2 * params.areaM2;
         cost += materialConfig.encapsulantPerM2 * params.areaM2;
         cost += materialConfig.ribbonPerCell * params.totalCells;
-        cost += materialConfig.junctionBoxCost;
+        cost += materialConfig.junctionBoxCost * params.junctionBoxCount;
         break;
       }
 
       case 'string-production': {
-        // Cell cost
-        const cellPrice = stringConfig.cellPrices[params.cellType]?.[params.cellFormat] ?? 0.28;
-        cost += cellPrice * params.totalCells;
         // Machine setup if non-standard
         if (!params.isStandardString) cost += stringConfig.nonStandardSetupCost;
         // Process cost with spacing factor
@@ -334,17 +329,14 @@ export function calculateCosts(
       }
 
       case 'frontend':
-        // Process cost affected by spacing and margin factors
         cost += subStepTotal * spacingFactor * marginFactor;
         break;
 
       case 'backend':
-        // Process cost affected by margin factor
         cost += subStepTotal * marginFactor;
         break;
 
       default:
-        // Sales, planning, packaging, shipment: base + perModule + substeps
         cost += subStepTotal;
         break;
     }
@@ -364,4 +356,33 @@ export function calculateCosts(
     sc.percentage = totalCost > 0 ? Math.round((sc.cost / totalCost) * 1000) / 10 : 0;
   }
   return { sectionCosts, totalCost: Math.round(totalCost * 100) / 100 };
+}
+
+// ════════════════════════════════════════════
+// Cost optimization helpers
+// ════════════════════════════════════════════
+
+// Compute the "best case" cost for the same power output:
+// standard layout, cheapest cell per Wp, category (a) glass
+export function computeOptimalCost(
+  sections: ProductionSection[],
+  materialConfig: MaterialConfig,
+  stringConfig: StringConfig,
+  spacingConfig: SpacingConfig,
+  marginConfig: MarginConfig,
+  currentParams: ModuleCostParams,
+  _currentPowerWp: number,
+): number {
+  // Use same params but with standard layout
+  const optimalParams: ModuleCostParams = {
+    ...currentParams,
+    isStandardString: true,
+    useStandardSpacing: true,
+    marginTop: 40,
+    marginBottom: 40,
+    marginLeft: 25,
+    marginRight: 25,
+  };
+  const { totalCost } = calculateCosts(sections, materialConfig, stringConfig, spacingConfig, marginConfig, optimalParams);
+  return totalCost;
 }

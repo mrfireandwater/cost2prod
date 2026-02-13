@@ -1,16 +1,13 @@
 import { useAppContext } from '../../context/AppContext';
-import type { SolarModule, SubmoduleConfig, CellType, CellFormat, GlassTexture } from '../../models/solarModule';
+import type { SolarModule, SubmoduleConfig, SubmoduleRotation } from '../../models/solarModule';
 import {
   MODULE_COLOR_TYPES,
-  BACKGLASS_COLOR_OPTIONS,
-  GLASS_TEXTURE_OPTIONS,
-  TEXTURED_GLASS_EFFICIENCY,
+  CELL_TYPE_DEFINITIONS,
+  GLASS_TYPE_DEFINITIONS,
+  getCellTypeDef,
+  getGlassTypeDef,
   computeSubmoduleCells,
 } from '../../models/solarModule';
-import { DEFAULT_SPACING_CONFIG, DEFAULT_MARGIN_CONFIG } from '../../models/production';
-
-const CELL_TYPES: CellType[] = ['mono-PERC', 'mono-HJT', 'mono-TOPCon', 'poly', 'custom'];
-const CELL_FORMATS: CellFormat[] = ['M6-166mm', 'M10-182mm', 'M12-210mm', 'custom'];
 
 function NumberInput({
   label, value, onChange, unit, min, max, step,
@@ -36,6 +33,8 @@ function NumberInput({
   );
 }
 
+const ROTATIONS: SubmoduleRotation[] = [0, 90, 180, 270];
+
 // ── Submodule form (reused for sub1 and sub2) ──
 function SubmoduleForm({
   sub,
@@ -49,6 +48,7 @@ function SubmoduleForm({
   const { updateSubmodule } = useAppContext();
   const upd = (updates: Partial<SubmoduleConfig>) => updateSubmodule(moduleId, subKey, updates);
   const totalCells = computeSubmoduleCells(sub);
+  const cellDef = getCellTypeDef(sub.cellTypeId);
 
   return (
     <div className="space-y-2">
@@ -57,32 +57,47 @@ function SubmoduleForm({
         <NumberInput label="Cells per string" value={sub.cellsPerString} min={1} max={30} onChange={(v) => upd({ cellsPerString: v })} />
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-slate-500">Cell type</span>
-          <select
-            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-            value={sub.cellType}
-            onChange={(e) => upd({ cellType: e.target.value as CellType })}
-          >
-            {CELL_TYPES.map((ct) => (
-              <option key={ct} value={ct}>{ct}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-slate-500">Cell format</span>
-          <select
-            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-            value={sub.cellFormat}
-            onChange={(e) => upd({ cellFormat: e.target.value as CellFormat })}
-          >
-            {CELL_FORMATS.map((cf) => (
-              <option key={cf} value={cf}>{cf}</option>
-            ))}
-          </select>
-        </label>
-      </div>
+      {/* Combined cell type (type + format merged) */}
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-slate-500">Cell type</span>
+        <select
+          className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+          value={sub.cellTypeId}
+          onChange={(e) => {
+            const newId = e.target.value;
+            const def = getCellTypeDef(newId);
+            upd({
+              cellTypeId: newId,
+              ...(sub.standardLayout ? {
+                distanceBetweenCells: def.standardSpacingY,
+                distanceBetweenStrings: def.standardSpacingX,
+                distanceToBorderX: def.standardBorderX,
+                distanceToBorderY: def.standardBorderY,
+              } : {}),
+            });
+          }}
+        >
+          {CELL_TYPE_DEFINITIONS.map((ct) => (
+            <option key={ct.id} value={ct.id}>
+              {ct.label} ({ct.sizeMm}mm, {ct.wpPerCell}Wp, {ct.priceCHF} CHF)
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {/* Rotation */}
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-slate-500">Rotation</span>
+        <select
+          className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+          value={sub.rotation}
+          onChange={(e) => upd({ rotation: Number(e.target.value) as SubmoduleRotation })}
+        >
+          {ROTATIONS.map((r) => (
+            <option key={r} value={r}>{r}°</option>
+          ))}
+        </select>
+      </label>
 
       <label className="flex items-center gap-2 text-sm">
         <input
@@ -94,10 +109,10 @@ function SubmoduleForm({
               standardLayout: std,
               ...(std
                 ? {
-                    distanceToBorderX: DEFAULT_MARGIN_CONFIG.standardMinMm,
-                    distanceToBorderY: 40,
-                    distanceBetweenCells: DEFAULT_SPACING_CONFIG.standardY,
-                    distanceBetweenStrings: DEFAULT_SPACING_CONFIG.standardX,
+                    distanceToBorderX: cellDef.standardBorderX,
+                    distanceToBorderY: cellDef.standardBorderY,
+                    distanceBetweenCells: cellDef.standardSpacingY,
+                    distanceBetweenStrings: cellDef.standardSpacingX,
                   }
                 : {}),
             });
@@ -140,6 +155,40 @@ function SubmoduleForm({
 
       <div className="text-xs text-slate-400">
         Total cells: <span className="font-semibold text-slate-600">{totalCells}</span>
+        {sub.halfCut && <span className="ml-1 text-slate-400">(half-cut, each counts as 1 unit)</span>}
+      </div>
+    </div>
+  );
+}
+
+// ── Cost optimization bar ──
+function CostOptimizationBar({ ratio, delta }: { ratio: number; delta: number }) {
+  // ratio: 0 = green (optimal), 1 = red (far from optimal)
+  const pct = Math.round(ratio * 100);
+  // Gradient from green to yellow to red
+  const r = Math.round(255 * Math.min(1, ratio * 2));
+  const g = Math.round(255 * Math.min(1, (1 - ratio) * 2));
+  const barColor = `rgb(${r}, ${g}, 50)`;
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1">
+        <div className="h-3 w-full rounded-full bg-slate-200 overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{
+              width: `${Math.max(5, pct)}%`,
+              backgroundColor: barColor,
+            }}
+          />
+        </div>
+        <div className="flex justify-between text-[9px] mt-0.5">
+          <span className="text-green-600">Optimal</span>
+          <span className="text-red-500">Expensive</span>
+        </div>
+      </div>
+      <div className="text-xs font-bold text-slate-700 whitespace-nowrap">
+        +{delta.toFixed(2)} CHF
       </div>
     </div>
   );
@@ -147,13 +196,14 @@ function SubmoduleForm({
 
 // ── Main module form ──
 function ModuleForm({ module }: { module: SolarModule }) {
-  const { updateModule } = useAppContext();
+  const { updateModule, totalCost, optimalCost, costOptimizationDelta, costOptimizationRatio } = useAppContext();
   const id = module.id;
   const update = (updates: Partial<SolarModule>) => updateModule(id, updates);
 
-  const colorType = MODULE_COLOR_TYPES.find((c) => c.id === module.frontglassColor);
+  const colorType = MODULE_COLOR_TYPES.find((c) => c.id === module.moduleColorId);
   const colorFactor = colorType?.factor ?? 1.0;
-  const glassFactor = module.frontglassTexture === 'textured' ? TEXTURED_GLASS_EFFICIENCY : 1.0;
+  const frontGlass = getGlassTypeDef(module.frontGlassId);
+  const glassFactor = frontGlass.transparencyEfficiency;
 
   return (
     <div className="space-y-4">
@@ -215,93 +265,74 @@ function ModuleForm({ module }: { module: SolarModule }) {
         )}
       </fieldset>
 
+      {/* Junction boxes & Cross-connectors (read-only computed) */}
+      <fieldset className="rounded border border-slate-200 p-2">
+        <legend className="px-1 text-xs font-semibold text-slate-600">Junction Boxes & Cross-connectors</legend>
+        <div className="text-xs text-slate-500 space-y-1">
+          <div className="flex justify-between">
+            <span>Junction boxes (Dosen):</span>
+            <span className="font-medium text-slate-700">{module.junctionBoxCount}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Cross-connectors (Querverbinder):</span>
+            <span className="font-medium text-slate-700">
+              {(module.submodule1.stringAmount - 1) + (module.submodule2Enabled ? (module.submodule2.stringAmount - 1) : 0)}
+            </span>
+          </div>
+        </div>
+      </fieldset>
+
+      {/* Module color (single color replacing front/back) */}
+      <fieldset className="rounded border border-slate-200 p-2">
+        <legend className="px-1 text-xs font-semibold text-slate-600">Module Color</legend>
+        <label className="flex flex-col gap-1">
+          <select
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none font-mono"
+            value={module.moduleColorId}
+            onChange={(e) => update({ moduleColorId: e.target.value })}
+          >
+            {MODULE_COLOR_TYPES.map((ct) => (
+              <option key={ct.id} value={ct.id}>
+                {ct.label} ({(ct.factor * 100).toFixed(0)}%)
+              </option>
+            ))}
+          </select>
+        </label>
+      </fieldset>
+
       {/* Glass type */}
       <fieldset className="rounded border border-slate-200 p-2">
-        <legend className="px-1 text-xs font-semibold text-slate-600">Glass type</legend>
-        <label className="flex items-center gap-2 text-sm mb-2">
-          <input
-            type="checkbox"
-            checked={module.standardGlass}
-            onChange={(e) => {
-              const std = e.target.checked;
-              update({
-                standardGlass: std,
-                ...(std
-                  ? {
-                      frontglassTexture: 'smooth' as GlassTexture,
-                      frontglassColor: 'standard',
-                      backglassTexture: 'smooth' as GlassTexture,
-                      backglassColor: 'white',
-                    }
-                  : {}),
-              });
-            }}
-            className="rounded"
-          />
-          Standard glass
-        </label>
-
-        {!module.standardGlass && (
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-slate-500">Frontglass texture</span>
-                <select
-                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-                  value={module.frontglassTexture}
-                  onChange={(e) => update({ frontglassTexture: e.target.value as GlassTexture })}
-                >
-                  {GLASS_TEXTURE_OPTIONS.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-slate-500">Frontglass color</span>
-                <select
-                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none font-mono"
-                  value={module.frontglassColor}
-                  onChange={(e) => update({ frontglassColor: e.target.value })}
-                >
-                  {MODULE_COLOR_TYPES.map((ct) => (
-                    <option key={ct.id} value={ct.id}>
-                      {ct.label.padEnd(28)} {(ct.factor * 100).toFixed(0)}%
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-slate-500">Backglass texture</span>
-                <select
-                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-                  value={module.backglassTexture}
-                  onChange={(e) => update({ backglassTexture: e.target.value as GlassTexture })}
-                >
-                  {GLASS_TEXTURE_OPTIONS.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-slate-500">Backglass color</span>
-                <select
-                  className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-                  value={module.backglassColor}
-                  onChange={(e) => update({ backglassColor: e.target.value })}
-                >
-                  {BACKGLASS_COLOR_OPTIONS.map((bc) => (
-                    <option key={bc.id} value={bc.id}>{bc.label}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          </div>
-        )}
+        <legend className="px-1 text-xs font-semibold text-slate-600">Glass</legend>
+        <div className="space-y-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-slate-500">Front glass</span>
+            <select
+              className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+              value={module.frontGlassId}
+              onChange={(e) => update({ frontGlassId: e.target.value })}
+            >
+              {GLASS_TYPE_DEFINITIONS.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.label} - {g.priceCHFPerM2} CHF/m2
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-slate-500">Back glass</span>
+            <select
+              className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+              value={module.backGlassId}
+              onChange={(e) => update({ backGlassId: e.target.value })}
+            >
+              {GLASS_TYPE_DEFINITIONS.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.label} - {g.priceCHFPerM2} CHF/m2
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </fieldset>
 
       {/* Power (computed, read-only) */}
@@ -318,7 +349,7 @@ function ModuleForm({ module }: { module: SolarModule }) {
               <span className="font-medium text-slate-700">{(colorFactor * 100).toFixed(0)}%</span>
             </div>
             <div className="flex justify-between">
-              <span>Glass factor ({module.frontglassTexture}):</span>
+              <span>Glass factor ({frontGlass.label}):</span>
               <span className="font-medium text-slate-700">{(glassFactor * 100).toFixed(0)}%</span>
             </div>
             <hr className="border-slate-200" />
@@ -326,6 +357,32 @@ function ModuleForm({ module }: { module: SolarModule }) {
               <span className="text-blue-700">Power:</span>
               <span className="text-blue-700">{module.powerWp} Wp</span>
             </div>
+          </div>
+        </div>
+      </fieldset>
+
+      {/* Price & Cost Optimization */}
+      <fieldset className="rounded border border-green-200 bg-green-50/30 p-2">
+        <legend className="px-1 text-xs font-semibold text-green-700">Price & Cost Optimization</legend>
+        <div className="rounded bg-white border border-green-200 p-2">
+          <div className="text-xs text-slate-500 space-y-1">
+            <div className="flex justify-between">
+              <span>Total cost:</span>
+              <span className="font-bold text-slate-800">{totalCost.toFixed(2)} CHF</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Optimal cost:</span>
+              <span className="font-medium text-green-700">{optimalCost.toFixed(2)} CHF</span>
+            </div>
+            {module.powerWp > 0 && (
+              <div className="flex justify-between">
+                <span>CHF / Wp:</span>
+                <span className="font-medium text-slate-700">{(totalCost / module.powerWp).toFixed(3)}</span>
+              </div>
+            )}
+            <hr className="border-slate-200 my-1" />
+            <div className="text-[10px] font-semibold text-slate-600 mb-1">Cost Optimization</div>
+            <CostOptimizationBar ratio={costOptimizationRatio} delta={costOptimizationDelta} />
           </div>
         </div>
       </fieldset>

@@ -1,7 +1,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useAppContext } from '../../context/AppContext';
 
-const COLORS = ['#6366f1', '#3b82f6', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7', '#f97316', '#ef4444'];
+const COLORS = ['#6366f1', '#3b82f6', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7', '#ef4444'];
 
 export default function CostBreakdown() {
   const { sectionCosts, totalCost, selectedModule } = useAppContext();
@@ -41,28 +41,28 @@ export default function CostBreakdown() {
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-lg bg-blue-50 p-2 text-center">
             <div className="text-lg font-bold text-blue-700">{totalCost.toFixed(2)}</div>
-            <div className="text-[10px] text-blue-500">Total EUR</div>
+            <div className="text-[10px] text-blue-500">Total CHF</div>
           </div>
           <div className="rounded-lg bg-amber-50 p-2 text-center">
             <div className="text-lg font-bold text-amber-700">{costPerWp.toFixed(3)}</div>
-            <div className="text-[10px] text-amber-500">EUR / Wp</div>
+            <div className="text-[10px] text-amber-500">CHF / Wp</div>
           </div>
           <div className="rounded-lg bg-green-50 p-2 text-center">
             <div className="text-lg font-bold text-green-700">{costPerM2.toFixed(2)}</div>
-            <div className="text-[10px] text-green-500">EUR / m2</div>
+            <div className="text-[10px] text-green-500">CHF / m2</div>
           </div>
         </div>
 
         {/* Bar chart */}
         <div>
-          <h3 className="text-xs font-semibold text-slate-600 mb-1">Cost per Section (EUR)</h3>
+          <h3 className="text-xs font-semibold text-slate-600 mb-1">Cost per Section (CHF)</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={barData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-30} textAnchor="end" height={60} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip
-                formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)} EUR`, 'Cost']}
+                formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)} CHF`, 'Cost']}
                 contentStyle={{ fontSize: 12 }}
               />
               <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
@@ -94,7 +94,7 @@ export default function CostBreakdown() {
                   <Cell key={index} fill={entry.fill} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)} EUR`]} contentStyle={{ fontSize: 12 }} />
+              <Tooltip formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)} CHF`]} contentStyle={{ fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
             </PieChart>
           </ResponsiveContainer>
@@ -107,7 +107,7 @@ export default function CostBreakdown() {
             <thead>
               <tr className="border-b border-slate-200 text-left text-slate-500">
                 <th className="py-1">Section</th>
-                <th className="py-1 text-right">Cost (EUR)</th>
+                <th className="py-1 text-right">Cost (CHF)</th>
                 <th className="py-1 text-right">Share</th>
               </tr>
             </thead>

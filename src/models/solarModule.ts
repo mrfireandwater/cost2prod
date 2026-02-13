@@ -1,8 +1,69 @@
-export type CellType = 'mono-PERC' | 'mono-HJT' | 'mono-TOPCon' | 'poly' | 'custom';
-export type CellFormat = 'M6-166mm' | 'M10-182mm' | 'M12-210mm' | 'custom';
-export type GlassTexture = 'smooth' | 'textured' | 'anti-glare';
+// ── Combined Cell Type definitions (type + format merged) ──
+// Each cell type includes its size, standard spacing, power, and price
+export interface CellTypeDefinition {
+  id: string;
+  label: string;
+  category: 'G1' | 'G2' | 'custom';
+  sizeMm: number;           // cell width/height in mm
+  standardSpacingX: number; // Zellstringabstände X (mm)
+  standardSpacingY: number; // Zellstringabstände Y (mm)
+  standardBorderX: number;  // standard margin X (mm)
+  standardBorderY: number;  // standard margin Y (mm)
+  wpPerCell: number;         // Wp per full cell (assuming 25% efficiency)
+  priceCHF: number;          // CHF per cell
+}
 
-// Color efficiency factors for power computation (with display colors for preview)
+export const CELL_TYPE_DEFINITIONS: CellTypeDefinition[] = [
+  // G1 types (166mm)
+  { id: 'G1-fully-black-a', label: 'Typ G1 fully black (a)', category: 'G1', sizeMm: 166, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 5.8, priceCHF: 0.22 },
+  { id: 'G1-totally-black-b', label: 'Typ G1 totally black (b)', category: 'G1', sizeMm: 166, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 5.5, priceCHF: 0.30 },
+  { id: 'G1-standard-blue-a', label: 'Typ G1 standard blue (a)', category: 'G1', sizeMm: 166, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 5.8, priceCHF: 0.20 },
+  // G2 types (182mm)
+  { id: 'G2-fully-black-a', label: 'Typ G2 fully black (a)', category: 'G2', sizeMm: 182, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 7.0, priceCHF: 0.28 },
+  { id: 'G2-totally-black-b', label: 'Typ G2 totally black (b)', category: 'G2', sizeMm: 182, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 6.6, priceCHF: 0.38 },
+  { id: 'G2-standard-blue-a', label: 'Typ G2 standard blue (a)', category: 'G2', sizeMm: 182, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 7.0, priceCHF: 0.25 },
+  { id: 'G2-HJT-a', label: 'Typ G2 HJT (a)', category: 'G2', sizeMm: 182, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 7.5, priceCHF: 0.52 },
+  { id: 'G2-TOPCon-a', label: 'Typ G2 TOPCon (a)', category: 'G2', sizeMm: 182, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 7.2, priceCHF: 0.34 },
+  // Custom
+  { id: 'custom', label: 'Custom', category: 'custom', sizeMm: 182, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 6.0, priceCHF: 0.28 },
+];
+
+export function getCellTypeDef(id: string): CellTypeDefinition {
+  return CELL_TYPE_DEFINITIONS.find((c) => c.id === id) ?? CELL_TYPE_DEFINITIONS[0];
+}
+
+// ── Glass type definitions ──
+export type GlassCategory = 'a' | 'b' | 'c';
+
+export interface GlassTypeDefinition {
+  id: string;
+  label: string;
+  category: GlassCategory;
+  transparencyEfficiency: number; // 1.0 for (a), 0.9 for (b), 0.8 for (c)
+  priceCHFPerM2: number;
+}
+
+export const GLASS_TYPE_DEFINITIONS: GlassTypeDefinition[] = [
+  // (a) Transparent glass - efficiency 1.0
+  { id: 'tempered-3.2mm-clear', label: 'Tempered 3.2mm Clear (a)', category: 'a', transparencyEfficiency: 1.0, priceCHFPerM2: 10 },
+  { id: 'tempered-2.0mm-clear', label: 'Tempered 2.0mm Clear (a)', category: 'a', transparencyEfficiency: 1.0, priceCHFPerM2: 8 },
+  { id: 'anti-glare-3.2mm', label: 'Anti-Glare 3.2mm (a)', category: 'a', transparencyEfficiency: 1.0, priceCHFPerM2: 14 },
+  { id: 'low-iron-3.2mm', label: 'Low Iron 3.2mm (a)', category: 'a', transparencyEfficiency: 1.0, priceCHFPerM2: 12 },
+  // (b) Semi-transparent / textured glass - efficiency 0.9
+  { id: 'textured-3.2mm', label: 'Textured 3.2mm (b)', category: 'b', transparencyEfficiency: 0.9, priceCHFPerM2: 18 },
+  { id: 'satin-3.2mm', label: 'Satin Finish 3.2mm (b)', category: 'b', transparencyEfficiency: 0.9, priceCHFPerM2: 16 },
+  { id: 'matte-3.2mm', label: 'Matte 3.2mm (b)', category: 'b', transparencyEfficiency: 0.9, priceCHFPerM2: 15 },
+  // (c) Opaque / colored glass - efficiency 0.8
+  { id: 'morpho-color', label: 'Morpho Color Glass (c)', category: 'c', transparencyEfficiency: 0.8, priceCHFPerM2: 40 },
+  { id: 'inkjet-printed', label: 'Inkjet Printed Glass (c)', category: 'c', transparencyEfficiency: 0.8, priceCHFPerM2: 25 },
+  { id: 'ceramic-printed', label: 'Ceramic Printed Glass (c)', category: 'c', transparencyEfficiency: 0.8, priceCHFPerM2: 30 },
+];
+
+export function getGlassTypeDef(id: string): GlassTypeDefinition {
+  return GLASS_TYPE_DEFINITIONS.find((g) => g.id === id) ?? GLASS_TYPE_DEFINITIONS[0];
+}
+
+// ── Module Color (replaces separate front/back color) ──
 export const MODULE_COLOR_TYPES = [
   { id: 'standard', label: 'Standard (Dark Blue)', factor: 1.0, displayColor: '#1e3a5f' },
   { id: 'full-black', label: 'Full Black', factor: 0.97, displayColor: '#111827' },
@@ -15,45 +76,29 @@ export const MODULE_COLOR_TYPES = [
   { id: 'solarcolor-white', label: 'SOLARCOLOR White', factor: 0.68, displayColor: '#cbd5e1' },
 ] as const;
 
+// Backglass color options
 export const BACKGLASS_COLOR_OPTIONS = [
   { id: 'white', label: 'White', displayColor: '#f1f5f9' },
   { id: 'black', label: 'Black', displayColor: '#1e293b' },
   { id: 'transparent', label: 'Transparent', displayColor: '#e0f2fe' },
 ] as const;
 
-export const GLASS_TEXTURE_OPTIONS: GlassTexture[] = ['smooth', 'textured', 'anti-glare'];
-
-export const TEXTURED_GLASS_EFFICIENCY = 0.95;
-
-// Base power per full cell (Wp) by cell format
-export const CELL_POWER_MAP: Record<string, number> = {
-  'M6-166mm': 5.8,
-  'M10-182mm': 7.0,
-  'M12-210mm': 9.5,
-  'custom': 6.0,
-};
-
-// Cell size (mm) by cell format
-export const FORMAT_SIZE_MAP: Record<string, number> = {
-  'M6-166mm': 166,
-  'M10-182mm': 182,
-  'M12-210mm': 210,
-  'custom': 182,
-};
+// ── Rotation type ──
+export type SubmoduleRotation = 0 | 90 | 180 | 270;
 
 // ── Submodule: an independent cell array within a module ──
 export interface SubmoduleConfig {
   stringAmount: number;           // number of strings (columns)
-  cellsPerString: number;         // number of cells per string (rows)
-  cellType: CellType;
-  cellFormat: CellFormat;
+  cellsPerString: number;         // number of cell UNITS per string (half cell = 1 unit)
+  cellTypeId: string;             // ID into CELL_TYPE_DEFINITIONS
   halfCut: boolean;
-  standardLayout: boolean;        // when true, uses standard spacing & margin values
-  distanceToBorderX: number;      // mm - margin left and right
-  distanceToBorderY: number;      // mm - margin top and bottom
-  distanceBetweenCells: number;   // mm - spacing between cells within a string
-  distanceBetweenStrings: number; // mm - spacing between strings
+  standardLayout: boolean;
+  distanceToBorderX: number;      // mm
+  distanceToBorderY: number;      // mm
+  distanceBetweenCells: number;   // mm
+  distanceBetweenStrings: number; // mm
   blackRibbonsAndConnectors: boolean;
+  rotation: SubmoduleRotation;    // 0, 90, 180, 270 degrees
 }
 
 export interface SolarModule {
@@ -66,11 +111,10 @@ export interface SolarModule {
   submodule2Enabled: boolean;
   submodule2: SubmoduleConfig;
   // Glass configuration
-  standardGlass: boolean;
-  frontglassTexture: GlassTexture;
-  frontglassColor: string;        // ID from MODULE_COLOR_TYPES
-  backglassTexture: GlassTexture;
-  backglassColor: string;         // ID from BACKGLASS_COLOR_OPTIONS
+  frontGlassId: string;    // ID into GLASS_TYPE_DEFINITIONS
+  backGlassId: string;     // ID into GLASS_TYPE_DEFINITIONS (same list as front)
+  // Module color (single color with semi-transparent overlay)
+  moduleColorId: string;   // ID from MODULE_COLOR_TYPES
   // Fixed ribbon properties
   ribbonWidthMm: number;
   ribbonCount: number;
@@ -79,30 +123,56 @@ export interface SolarModule {
   // Computed
   totalCells: number;
   powerWp: number;
-  // Color for visual identification
+  junctionBoxCount: number;  // computed: ((strings/2)+1)*submodules
+  // Color for visual identification in tabs
   color: string;
 }
 
+// ── Cell counting: half cell = 1 cell unit ──
+// cellsPerString = number of cell units
+// With halfCut: each unit is a half-cell physically, but counts as 1 cell unit
+// Without halfCut: each unit is a full cell
 export function computeSubmoduleCells(sub: SubmoduleConfig): number {
-  return sub.stringAmount * sub.cellsPerString * (sub.halfCut ? 2 : 1);
+  // Cell units = stringAmount * cellsPerString (regardless of halfCut)
+  return sub.stringAmount * sub.cellsPerString;
+}
+
+// Junction box count: ((string_number_per_submod / 2) + 1) * submod_number
+export function computeJunctionBoxCount(
+  submodule1: SubmoduleConfig,
+  submodule2Enabled: boolean,
+  submodule2: SubmoduleConfig,
+): number {
+  const stringsPerSubmod1 = submodule1.stringAmount;
+  const jbFromSub1 = Math.floor(stringsPerSubmod1 / 2) + 1;
+  let total = jbFromSub1;
+  if (submodule2Enabled) {
+    const stringsPerSubmod2 = submodule2.stringAmount;
+    const jbFromSub2 = Math.floor(stringsPerSubmod2 / 2) + 1;
+    total += jbFromSub2;
+  }
+  return total;
 }
 
 export function computeModulePower(
   submodule1: SubmoduleConfig,
   submodule2Enabled: boolean,
   submodule2: SubmoduleConfig,
-  frontglassColor: string,
-  frontglassTexture: GlassTexture,
+  moduleColorId: string,
+  frontGlassId: string,
 ): number {
-  const colorType = MODULE_COLOR_TYPES.find((c) => c.id === frontglassColor);
+  const colorType = MODULE_COLOR_TYPES.find((c) => c.id === moduleColorId);
   const colorFactor = colorType?.factor ?? 1.0;
-  const glassFactor = frontglassTexture === 'textured' ? TEXTURED_GLASS_EFFICIENCY : 1.0;
+  const glassDef = getGlassTypeDef(frontGlassId);
+  const glassFactor = glassDef.transparencyEfficiency;
 
   function subPower(sub: SubmoduleConfig): number {
-    const cells = computeSubmoduleCells(sub);
-    const fullCellPower = CELL_POWER_MAP[sub.cellFormat] ?? 6.0;
-    const cellPower = sub.halfCut ? fullCellPower / 2 : fullCellPower;
-    return cells * cellPower;
+    const cellDef = getCellTypeDef(sub.cellTypeId);
+    const cellUnits = computeSubmoduleCells(sub);
+    // If half-cut, each cell unit is a half-cell, so power per unit = wpPerCell / 2
+    // If full cell, power per unit = wpPerCell
+    const powerPerUnit = sub.halfCut ? cellDef.wpPerCell / 2 : cellDef.wpPerCell;
+    return cellUnits * powerPerUnit;
   }
 
   let total = subPower(submodule1);
@@ -114,8 +184,7 @@ export function createDefaultSubmodule(): SubmoduleConfig {
   return {
     stringAmount: 10,
     cellsPerString: 6,
-    cellType: 'mono-PERC',
-    cellFormat: 'M10-182mm',
+    cellTypeId: 'G2-fully-black-a',
     halfCut: true,
     standardLayout: true,
     distanceToBorderX: 25,
@@ -123,6 +192,7 @@ export function createDefaultSubmodule(): SubmoduleConfig {
     distanceBetweenCells: 2,
     distanceBetweenStrings: 2,
     blackRibbonsAndConnectors: false,
+    rotation: 0,
   };
 }
 
@@ -131,10 +201,11 @@ export function createDefaultModule(id: string, name: string): SolarModule {
   const submodule2 = createDefaultSubmodule();
   submodule2.stringAmount = 5;
   submodule2.cellsPerString = 3;
-  const frontglassColor = 'standard';
-  const frontglassTexture: GlassTexture = 'smooth';
+  const moduleColorId = 'standard';
+  const frontGlassId = 'tempered-3.2mm-clear';
   const totalCells = computeSubmoduleCells(submodule1);
-  const powerWp = computeModulePower(submodule1, false, submodule2, frontglassColor, frontglassTexture);
+  const powerWp = computeModulePower(submodule1, false, submodule2, moduleColorId, frontGlassId);
+  const junctionBoxCount = computeJunctionBoxCount(submodule1, false, submodule2);
 
   return {
     id,
@@ -144,16 +215,15 @@ export function createDefaultModule(id: string, name: string): SolarModule {
     submodule1,
     submodule2Enabled: false,
     submodule2,
-    standardGlass: true,
-    frontglassTexture,
-    frontglassColor,
-    backglassTexture: 'smooth',
-    backglassColor: 'white',
+    frontGlassId,
+    backGlassId: 'tempered-3.2mm-clear',
+    moduleColorId,
     ribbonWidthMm: 0.4,
     ribbonCount: 6,
     encapsulantType: 'EVA',
     totalCells,
     powerWp,
+    junctionBoxCount,
     color: '#1e3a5f',
   };
 }

@@ -7,7 +7,6 @@ const SECTION_COLORS: Record<string, string> = {
   'string-production': '#22c55e',
   frontend: '#06b6d4',
   backend: '#a855f7',
-  packaging: '#f97316',
   shipment: '#ef4444',
 };
 
@@ -20,7 +19,7 @@ export default function ProductionLine() {
         <h2 className="text-sm font-bold text-slate-700">Production Line</h2>
         {selectedModule && (
           <p className="text-xs text-slate-400">
-            Cost breakdown for: {selectedModule.name} | Total: <span className="font-bold text-slate-700">{totalCost.toFixed(2)} EUR</span>
+            Cost breakdown for: {selectedModule.name} | Total: <span className="font-bold text-slate-700">{totalCost.toFixed(2)} CHF</span>
           </p>
         )}
       </div>
@@ -46,7 +45,7 @@ export default function ProductionLine() {
                       <span className="text-[10px] font-bold text-center leading-tight">{section.name}</span>
                       {cost && (
                         <span className="mt-1 text-[10px] font-medium bg-black/20 rounded px-1">
-                          {cost.cost.toFixed(2)} EUR
+                          {cost.cost.toFixed(2)} CHF
                         </span>
                       )}
                     </div>
@@ -71,7 +70,7 @@ export default function ProductionLine() {
                       backgroundColor: SECTION_COLORS[sc.sectionId] || '#6b7280',
                       minWidth: sc.percentage > 0 ? '20px' : '0',
                     }}
-                    title={`${sc.sectionName}: ${sc.cost.toFixed(2)} EUR (${sc.percentage}%)`}
+                    title={`${sc.sectionName}: ${sc.cost.toFixed(2)} CHF (${sc.percentage}%)`}
                   >
                     {sc.percentage > 8 ? `${sc.percentage}%` : ''}
                   </div>
@@ -103,7 +102,7 @@ export default function ProductionLine() {
                       </div>
                       {cost && (
                         <div className="text-right">
-                          <div className="text-sm font-bold text-slate-800">{cost.cost.toFixed(2)} EUR</div>
+                          <div className="text-sm font-bold text-slate-800">{cost.cost.toFixed(2)} CHF</div>
                           <div className="text-xs text-slate-400">{cost.percentage}%</div>
                         </div>
                       )}
@@ -112,10 +111,10 @@ export default function ProductionLine() {
                     {/* Cost breakdown within section */}
                     <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
                       <div>
-                        Base: <span className="font-medium text-slate-600">{section.baseCostEur.toFixed(2)} EUR</span>
+                        Base: <span className="font-medium text-slate-600">{section.baseCostCHF.toFixed(2)} CHF</span>
                       </div>
                       <div>
-                        Per module: <span className="font-medium text-slate-600">{section.perModuleCostEur.toFixed(2)} EUR</span>
+                        Per module: <span className="font-medium text-slate-600">{section.perModuleCostCHF.toFixed(2)} CHF</span>
                       </div>
                     </div>
 
@@ -146,7 +145,7 @@ export default function ProductionLine() {
                     )}
                     {section.subSteps.length === 0 && section.id === 'material' && (
                       <div className="mt-2 text-[10px] text-slate-400 italic">
-                        Cost computed from BOM (glass, backsheet, encapsulant, ribbons, junction box)
+                        Cost computed from BOM (cells, glass, backsheet, encapsulant, ribbons, junction boxes)
                       </div>
                     )}
                   </div>
