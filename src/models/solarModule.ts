@@ -90,6 +90,9 @@ export const BACKGLASS_COLOR_OPTIONS = [
   { id: 'transparent', label: 'Transparent', displayColor: '#e0f2fe' },
 ] as const;
 
+// ── Module shape type ──
+export type ModuleShape = 'rectangle' | 'parallelogram' | 'trapezoid';
+
 // ── Rotation type ──
 export type SubmoduleRotation = 0 | 90 | 180 | 270;
 
@@ -113,6 +116,11 @@ export interface SolarModule {
   name: string;
   width: number;   // mm
   height: number;  // mm
+  // Shape
+  shape: ModuleShape;
+  skewAngle: number;    // degrees – parallelogram skew (0 = rectangle)
+  cutWidth: number;     // mm – trapezoid corner cut horizontal dimension
+  cutHeight: number;    // mm – trapezoid corner cut vertical dimension
   // Submodules
   submodule1: SubmoduleConfig;
   submodule2Enabled: boolean;
@@ -182,6 +190,41 @@ export function computeModulePower(
   return Math.round(total * colorFactor * glassFactor * 10) / 10;
 }
 
+/** Compute polygon points (in mm) for the module outline based on shape */
+export function computeShapePoints(m: SolarModule): [number, number][] {
+  const { width: w, height: h, shape } = m;
+  if (shape === 'parallelogram') {
+    // Skew offset: horizontal shift based on angle
+    const offset = h * Math.tan((Math.abs(m.skewAngle) * Math.PI) / 180);
+    // Top edge shifted right, bottom edge at origin
+    return [
+      [offset, 0],
+      [w, 0],
+      [w - offset, h],
+      [0, h],
+    ];
+  }
+  if (shape === 'trapezoid') {
+    // Rectangle with top-right corner cut off (5-sided)
+    const cw = Math.min(m.cutWidth, w);
+    const ch = Math.min(m.cutHeight, h);
+    return [
+      [0, 0],
+      [w - cw, 0],
+      [w, ch],
+      [w, h],
+      [0, h],
+    ];
+  }
+  // Rectangle
+  return [
+    [0, 0],
+    [w, 0],
+    [w, h],
+    [0, h],
+  ];
+}
+
 export function createDefaultSubmodule(): SubmoduleConfig {
   return {
     stringAmount: 10,
@@ -214,6 +257,10 @@ export function createDefaultModule(id: string, name: string): SolarModule {
     name,
     width: 1134,
     height: 1722,
+    shape: 'rectangle' as ModuleShape,
+    skewAngle: 15,
+    cutWidth: 200,
+    cutHeight: 200,
     submodule1,
     submodule2Enabled: false,
     submodule2,

@@ -1,5 +1,5 @@
 import { useAppContext } from '../../context/AppContext';
-import type { SolarModule, SubmoduleConfig, SubmoduleRotation } from '../../models/solarModule';
+import type { SolarModule, SubmoduleConfig, SubmoduleRotation, ModuleShape } from '../../models/solarModule';
 import {
   MODULE_COLOR_TYPES,
   CELL_TYPE_DEFINITIONS,
@@ -232,6 +232,76 @@ function ModuleForm({ module }: { module: SolarModule }) {
           <NumberInput label="Width" value={module.width} unit="mm" min={100} onChange={(v) => update({ width: v })} />
           <NumberInput label="Height" value={module.height} unit="mm" min={100} onChange={(v) => update({ height: v })} />
         </div>
+
+        {/* Shape selector */}
+        <div className="mt-3">
+          <span className="text-xs font-medium text-slate-500">Shape</span>
+          <div className="mt-1 flex gap-2">
+            {/* Rectangle */}
+            <button
+              type="button"
+              onClick={() => update({ shape: 'rectangle' as ModuleShape })}
+              className={`flex flex-col items-center gap-1 rounded border px-3 py-2 text-[10px] transition-colors ${
+                module.shape === 'rectangle'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+              }`}
+              title="Rectangle (4 sides, 90° angles)"
+            >
+              <svg width="32" height="24" viewBox="0 0 32 24">
+                <rect x="2" y="2" width="28" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+              Rectangle
+            </button>
+
+            {/* Parallelogram */}
+            <button
+              type="button"
+              onClick={() => update({ shape: 'parallelogram' as ModuleShape })}
+              className={`flex flex-col items-center gap-1 rounded border px-3 py-2 text-[10px] transition-colors ${
+                module.shape === 'parallelogram'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+              }`}
+              title="Parallelogram (4 sides, non-90° angles)"
+            >
+              <svg width="32" height="24" viewBox="0 0 32 24">
+                <polygon points="8,2 30,2 24,22 2,22" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+              Parallelo.
+            </button>
+
+            {/* Trapezoid rectangle (5 sides) */}
+            <button
+              type="button"
+              onClick={() => update({ shape: 'trapezoid' as ModuleShape })}
+              className={`flex flex-col items-center gap-1 rounded border px-3 py-2 text-[10px] transition-colors ${
+                module.shape === 'trapezoid'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+              }`}
+              title="Trapezoid rectangle (5 sides, corner cut)"
+            >
+              <svg width="32" height="24" viewBox="0 0 32 24">
+                <polygon points="2,2 22,2 30,10 30,22 2,22" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+              Trapezoid
+            </button>
+          </div>
+        </div>
+
+        {/* Shape-specific parameters */}
+        {module.shape === 'parallelogram' && (
+          <div className="mt-2">
+            <NumberInput label="Skew angle" value={module.skewAngle} unit="°" min={1} max={45} step={1} onChange={(v) => update({ skewAngle: v })} />
+          </div>
+        )}
+        {module.shape === 'trapezoid' && (
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <NumberInput label="Cut width" value={module.cutWidth} unit="mm" min={10} max={module.width - 10} step={1} onChange={(v) => update({ cutWidth: v })} />
+            <NumberInput label="Cut height" value={module.cutHeight} unit="mm" min={10} max={module.height - 10} step={1} onChange={(v) => update({ cutHeight: v })} />
+          </div>
+        )}
       </fieldset>
 
       {/* Submodul 1 */}

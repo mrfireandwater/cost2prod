@@ -1,7 +1,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import type { SolarModule, SubmoduleConfig } from '../../models/solarModule';
-import { MODULE_COLOR_TYPES, getCellTypeDef } from '../../models/solarModule';
+import { MODULE_COLOR_TYPES, getCellTypeDef, computeShapePoints } from '../../models/solarModule';
 
 // Compute the cell matrix dimensions for a submodule (in mm)
 function computeMatrixSize(sub: SubmoduleConfig) {
@@ -265,10 +265,17 @@ function ModuleSVG({
   const moduleColor = MODULE_COLOR_TYPES.find((c) => c.id === module.moduleColorId);
   const overlayColor = moduleColor?.displayColor ?? '#1e3a5f';
 
+  // Shape polygon points
+  const shapePoints = computeShapePoints(module);
+  const shapePointsStr = shapePoints.map(([x, y]) => `${x},${y}`).join(' ');
+  // Inset version for background fill (0.5px inset)
+  // We'll just use the same points with a slight inset via CSS or SVG tricks
+  const shapeBoundsMaxX = Math.max(...shapePoints.map(([x]) => x));
+
   // Expand viewBox for annotations
   const padRight = 40;
   const padBottom = 40;
-  const viewBox = `0 0 ${width + padRight} ${height + padBottom}`;
+  const viewBox = `0 0 ${Math.max(width, shapeBoundsMaxX) + padRight} ${height + padBottom}`;
 
   // Determine submodule regions
   const sub2On = module.submodule2Enabled;
@@ -338,11 +345,18 @@ function ModuleSVG({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {/* Module outline */}
-      <rect x={0} y={0} width={width} height={height} fill="none" stroke="#94a3b8" strokeWidth={1} />
+      {/* Clip path for module shape */}
+      <defs>
+        <clipPath id="module-shape-clip">
+          <polygon points={shapePointsStr} />
+        </clipPath>
+      </defs>
 
-      {/* Backglass background */}
-      <rect x={0.5} y={0.5} width={width - 1} height={height - 1} fill={bgColor} rx={1} />
+      {/* Module outline (shape-aware) */}
+      <polygon points={shapePointsStr} fill="none" stroke="#94a3b8" strokeWidth={1} />
+
+      {/* Backglass background (shape-aware) */}
+      <polygon points={shapePointsStr} fill={bgColor} strokeWidth={0} />
 
       {/* Submodule 1 dashed border around cell matrix */}
       <rect
@@ -449,15 +463,11 @@ function ModuleSVG({
         </>
       )}
 
-      {/* Semi-transparent module color overlay */}
-      <rect
-        x={0.5}
-        y={0.5}
-        width={width - 1}
-        height={height - 1}
+      {/* Semi-transparent module color overlay (shape-aware) */}
+      <polygon
+        points={shapePointsStr}
         fill={overlayColor}
         opacity={0.15}
-        rx={1}
         pointerEvents="none"
       />
 
@@ -477,23 +487,50 @@ function ModuleSVG({
       </text>
 
       <line
-        x1={width + 15}
+        x1={shapeBoundsMaxX + 15}
         y1={0}
-        x2={width + 15}
+        x2={shapeBoundsMaxX + 15}
         y2={height}
         stroke="#64748b"
         strokeWidth={0.8}
       />
       <text
-        x={width + 20}
+        x={shapeBoundsMaxX + 20}
         y={height / 2}
         fontSize={10}
         fill="#64748b"
-        transform={`rotate(90, ${width + 20}, ${height / 2})`}
+        transform={`rotate(90, ${shapeBoundsMaxX + 20}, ${height / 2})`}
         textAnchor="middle"
       >
         {height} mm
       </text>
+
+      {/* Shape-specific dimension annotations */}
+      {module.shape === 'parallelogram' && (
+        <>
+          {/* Skew angle indicator */}
+          <text x={shapeBoundsMaxX / 2} y={height + 38} textAnchor="middle" fontSize={8} fill="#94a3b8">
+            Skew: {module.skewAngle}°
+          </text>
+        </>
+      )}
+      {module.shape === 'trapezoid' && (
+        <>
+          {/* Cut dimension annotations */}
+          <DimensionAnnotation
+            x1={width - module.cutWidth} y1={0}
+            x2={width} y2={0}
+            label={`${module.cutWidth}`}
+            orientation="horizontal"
+          />
+          <DimensionAnnotation
+            x1={width} y1={0}
+            x2={width} y2={module.cutHeight}
+            label={`${module.cutHeight}`}
+            orientation="vertical"
+          />
+        </>
+      )}
 
       <defs>
         <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="6" refY="2" orient="auto">
