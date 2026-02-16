@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { AppProvider } from './context/AppContext';
 import ModuleDesigner from './components/ModuleDesigner/ModuleDesigner';
 import ModulePreview from './components/ModulePreview/ModulePreview';
@@ -8,8 +8,64 @@ import Settings from './components/Settings/Settings';
 
 type Tab = 'design' | 'production' | 'settings';
 
+// Draggable resize handle between two panels
+function ResizeHandle({
+  onDrag,
+}: {
+  onDrag: (deltaX: number) => void;
+}) {
+  const dragging = useRef(false);
+  const lastX = useRef(0);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    lastX.current = e.clientX;
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!dragging.current) return;
+      const dx = ev.clientX - lastX.current;
+      lastX.current = ev.clientX;
+      onDrag(dx);
+    };
+
+    const handleMouseUp = () => {
+      dragging.current = false;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [onDrag]);
+
+  return (
+    <div
+      className="w-1.5 flex-shrink-0 cursor-col-resize bg-slate-200 hover:bg-blue-400 active:bg-blue-500 transition-colors"
+      onMouseDown={handleMouseDown}
+    />
+  );
+}
+
 function AppContent() {
   const [activeTab, setActiveTab] = useState<Tab>('design');
+  // Default designer width: 320px * 1.3 = 416px
+  const [designerWidth, setDesignerWidth] = useState(416);
+  // Default production cost panel width
+  const [costPanelWidth, setCostPanelWidth] = useState(420);
+
+  const handleDesignerResize = useCallback((dx: number) => {
+    setDesignerWidth((prev) => Math.max(280, Math.min(800, prev + dx)));
+  }, []);
+
+  const handleCostPanelResize = useCallback((dx: number) => {
+    // Cost panel is on the right, so dragging right shrinks it
+    setCostPanelWidth((prev) => Math.max(280, Math.min(700, prev - dx)));
+  }, []);
 
   return (
     <div className="flex h-screen flex-col bg-slate-100">
@@ -64,10 +120,15 @@ function AppContent() {
       <main className="flex flex-1 overflow-hidden">
         {activeTab === 'design' ? (
           <>
-            {/* Left panel: Module Designer */}
-            <div className="w-80 flex-shrink-0 overflow-hidden border-r border-slate-200 bg-white">
+            {/* Left panel: Module Designer (resizable) */}
+            <div
+              className="flex-shrink-0 overflow-hidden bg-white"
+              style={{ width: designerWidth }}
+            >
               <ModuleDesigner />
             </div>
+
+            <ResizeHandle onDrag={handleDesignerResize} />
 
             {/* Right: Module Preview */}
             <div className="flex-1 overflow-hidden bg-white">
@@ -77,12 +138,17 @@ function AppContent() {
         ) : activeTab === 'production' ? (
           <>
             {/* Left: Production Line */}
-            <div className="flex-1 overflow-hidden border-r border-slate-200 bg-white">
+            <div className="flex-1 overflow-hidden bg-white">
               <ProductionLine />
             </div>
 
-            {/* Right: Cost Breakdown Charts */}
-            <div className="w-[420px] flex-shrink-0 overflow-hidden bg-white">
+            <ResizeHandle onDrag={handleCostPanelResize} />
+
+            {/* Right: Cost Breakdown Charts (resizable) */}
+            <div
+              className="flex-shrink-0 overflow-hidden bg-white"
+              style={{ width: costPanelWidth }}
+            >
               <CostBreakdown />
             </div>
           </>
