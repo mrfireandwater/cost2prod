@@ -6,8 +6,8 @@ import { MODULE_COLOR_TYPES, getCellTypeDef } from '../../models/solarModule';
 // Compute the cell matrix dimensions for a submodule (in mm)
 function computeMatrixSize(sub: SubmoduleConfig) {
   const cellDef = getCellTypeDef(sub.cellTypeId);
-  const cellW = cellDef.sizeMm;
-  const cellH = sub.halfCut ? cellDef.sizeMm / 2 : cellDef.sizeMm;
+  const cellW = cellDef.sizeXMm;
+  const cellH = cellDef.sizeYMm;
   const totalCols = sub.stringAmount;
   const totalRows = sub.cellsPerString;
   const matrixW = totalCols * cellW + (totalCols - 1) * sub.distanceBetweenStrings;

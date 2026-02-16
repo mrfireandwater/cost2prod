@@ -79,7 +79,7 @@ function SubmoduleForm({
         >
           {CELL_TYPE_DEFINITIONS.map((ct) => (
             <option key={ct.id} value={ct.id}>
-              {ct.label} ({ct.sizeMm}mm, {ct.wpPerCell}Wp, {ct.priceCHF} CHF)
+              {ct.label} ({ct.sizeXMm}x{ct.sizeYMm}mm, {ct.wpPerCell}Wp, {ct.priceCHF} CHF)
             </option>
           ))}
         </select>
@@ -142,16 +142,6 @@ function SubmoduleForm({
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
-          checked={sub.halfCut}
-          onChange={(e) => upd({ halfCut: e.target.checked })}
-          className="rounded"
-        />
-        Half-cut cells
-      </label>
-
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
           checked={sub.blackRibbonsAndConnectors}
           onChange={(e) => upd({ blackRibbonsAndConnectors: e.target.checked })}
           className="rounded"
@@ -161,7 +151,7 @@ function SubmoduleForm({
 
       <div className="text-xs text-slate-400">
         Total cells: <span className="font-semibold text-slate-600">{totalCells}</span>
-        {sub.halfCut && <span className="ml-1 text-slate-400">(half-cut, each counts as 1 unit)</span>}
+        {cellDef.isHalfCut && <span className="ml-1 text-slate-400">(half-cut, each counts as 1 unit)</span>}
       </div>
     </div>
   );

@@ -1,31 +1,38 @@
 // ── Combined Cell Type definitions (type + format merged) ──
-// Each cell type includes its size, standard spacing, power, and price
+// Each cell type includes its dimensions, standard spacing, power, and price
 export interface CellTypeDefinition {
   id: string;
   label: string;
-  category: 'G1' | 'G2' | 'custom';
-  sizeMm: number;           // cell width/height in mm
-  standardSpacingX: number; // Zellstringabstände X (mm)
-  standardSpacingY: number; // Zellstringabstände Y (mm)
-  standardBorderX: number;  // standard margin X (mm)
-  standardBorderY: number;  // standard margin Y (mm)
-  wpPerCell: number;         // Wp per full cell (assuming 25% efficiency)
+  category: 'G1' | 'M6' | 'M10' | 'G12' | 'custom';
+  sizeXMm: number;           // cell width in mm
+  sizeYMm: number;           // cell height in mm (half of sizeX for HC types)
+  isHalfCut: boolean;        // true for HC cell types
+  standardSpacingX: number;  // Zellstringabstände X (mm)
+  standardSpacingY: number;  // Zellstringabstände Y (mm)
+  standardBorderX: number;   // standard margin X (mm)
+  standardBorderY: number;   // standard margin Y (mm)
+  wpPerCell: number;         // Wp per full cell (halved for HC in power calc)
   priceCHF: number;          // CHF per cell
 }
 
 export const CELL_TYPE_DEFINITIONS: CellTypeDefinition[] = [
-  // G1 types (166mm)
-  { id: 'G1-fully-black-a', label: 'Typ G1 fully black (a)', category: 'G1', sizeMm: 166, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 5.8, priceCHF: 0.22 },
-  { id: 'G1-totally-black-b', label: 'Typ G1 totally black (b)', category: 'G1', sizeMm: 166, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 5.5, priceCHF: 0.30 },
-  { id: 'G1-standard-blue-a', label: 'Typ G1 standard blue (a)', category: 'G1', sizeMm: 166, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 5.8, priceCHF: 0.20 },
-  // G2 types (182mm)
-  { id: 'G2-fully-black-a', label: 'Typ G2 fully black (a)', category: 'G2', sizeMm: 182, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 7.0, priceCHF: 0.28 },
-  { id: 'G2-totally-black-b', label: 'Typ G2 totally black (b)', category: 'G2', sizeMm: 182, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 6.6, priceCHF: 0.38 },
-  { id: 'G2-standard-blue-a', label: 'Typ G2 standard blue (a)', category: 'G2', sizeMm: 182, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 7.0, priceCHF: 0.25 },
-  { id: 'G2-HJT-a', label: 'Typ G2 HJT (a)', category: 'G2', sizeMm: 182, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 7.5, priceCHF: 0.52 },
-  { id: 'G2-TOPCon-a', label: 'Typ G2 TOPCon (a)', category: 'G2', sizeMm: 182, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 7.2, priceCHF: 0.34 },
+  // Typ G1 (158.75 x 158.75mm) – full cells
+  { id: 'G1-full-black-a',    label: 'Typ G1 Full Black (a)',    category: 'G1', sizeXMm: 158.75, sizeYMm: 158.75, isHalfCut: false, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 5.8, priceCHF: 0.22 },
+  { id: 'G1-totally-black-b', label: 'Typ G1 Totally Black (b)', category: 'G1', sizeXMm: 158.75, sizeYMm: 158.75, isHalfCut: false, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 5.5, priceCHF: 0.30 },
+  { id: 'G1-solarcolor-b',    label: 'Typ G1 SOLARCOLOR (b)',    category: 'G1', sizeXMm: 158.75, sizeYMm: 158.75, isHalfCut: false, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 5.5, priceCHF: 0.35 },
+  // Typ M6 RearCon HC (166 x 83mm) – half-cut
+  { id: 'M6-totally-black-a',  label: 'Typ M6 RearCon HC Totally Black (a)', category: 'M6', sizeXMm: 166, sizeYMm: 83, isHalfCut: true, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 5.8, priceCHF: 0.25 },
+  { id: 'M6-solarcolor-a',     label: 'Typ M6 RearCon HC SOLARCOLOR (a)',    category: 'M6', sizeXMm: 166, sizeYMm: 83, isHalfCut: true, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 5.8, priceCHF: 0.30 },
+  // Typ M10 HC (182 x 91mm) – half-cut
+  { id: 'M10-full-black-a',    label: 'Typ M10 HC Full Black (a)',    category: 'M10', sizeXMm: 182, sizeYMm: 91, isHalfCut: true, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 7.0, priceCHF: 0.28 },
+  { id: 'M10-totally-black-b', label: 'Typ M10 HC Totally Black (b)', category: 'M10', sizeXMm: 182, sizeYMm: 91, isHalfCut: true, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 6.6, priceCHF: 0.38 },
+  { id: 'M10-solarcolor-b',    label: 'Typ M10 HC SOLARCOLOR (b)',    category: 'M10', sizeXMm: 182, sizeYMm: 91, isHalfCut: true, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 6.6, priceCHF: 0.42 },
+  // Typ G12 HC (210 x 105mm) – half-cut
+  { id: 'G12-full-black-c',    label: 'Typ G12 HC Full Black (c)',    category: 'G12', sizeXMm: 210, sizeYMm: 105, isHalfCut: true, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 9.0, priceCHF: 0.45 },
+  { id: 'G12-totally-black-c', label: 'Typ G12 HC Totally Black (c)', category: 'G12', sizeXMm: 210, sizeYMm: 105, isHalfCut: true, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 8.5, priceCHF: 0.55 },
+  { id: 'G12-solarcolor-c',    label: 'Typ G12 HC SOLARCOLOR (c)',    category: 'G12', sizeXMm: 210, sizeYMm: 105, isHalfCut: true, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 8.5, priceCHF: 0.60 },
   // Custom
-  { id: 'custom', label: 'Custom', category: 'custom', sizeMm: 182, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 6.0, priceCHF: 0.28 },
+  { id: 'custom', label: 'Custom', category: 'custom', sizeXMm: 182, sizeYMm: 91, isHalfCut: true, standardSpacingX: 2, standardSpacingY: 2, standardBorderX: 25, standardBorderY: 40, wpPerCell: 6.0, priceCHF: 0.28 },
 ];
 
 export function getCellTypeDef(id: string): CellTypeDefinition {
@@ -91,7 +98,6 @@ export interface SubmoduleConfig {
   stringAmount: number;           // number of strings (columns)
   cellsPerString: number;         // number of cell UNITS per string (half cell = 1 unit)
   cellTypeId: string;             // ID into CELL_TYPE_DEFINITIONS
-  halfCut: boolean;
   standardLayout: boolean;
   distanceToBorderX: number;      // mm – X position of submodule on glass
   distanceToBorderY: number;      // mm – Y position of submodule on glass
@@ -129,12 +135,9 @@ export interface SolarModule {
   color: string;
 }
 
-// ── Cell counting: half cell = 1 cell unit ──
-// cellsPerString = number of cell units
-// With halfCut: each unit is a half-cell physically, but counts as 1 cell unit
-// Without halfCut: each unit is a full cell
+// ── Cell counting ──
+// cellsPerString = number of cell units (HC types: each unit is a half-cell)
 export function computeSubmoduleCells(sub: SubmoduleConfig): number {
-  // Cell units = stringAmount * cellsPerString (regardless of halfCut)
   return sub.stringAmount * sub.cellsPerString;
 }
 
@@ -168,9 +171,9 @@ export function computeModulePower(
   function subPower(sub: SubmoduleConfig): number {
     const cellDef = getCellTypeDef(sub.cellTypeId);
     const cellUnits = computeSubmoduleCells(sub);
-    // If half-cut, each cell unit is a half-cell, so power per unit = wpPerCell / 2
-    // If full cell, power per unit = wpPerCell
-    const powerPerUnit = sub.halfCut ? cellDef.wpPerCell / 2 : cellDef.wpPerCell;
+    // HC cell types: each cell unit is a half-cell, power per unit = wpPerCell / 2
+    // Full cell types: power per unit = wpPerCell
+    const powerPerUnit = cellDef.isHalfCut ? cellDef.wpPerCell / 2 : cellDef.wpPerCell;
     return cellUnits * powerPerUnit;
   }
 
@@ -183,8 +186,7 @@ export function createDefaultSubmodule(): SubmoduleConfig {
   return {
     stringAmount: 10,
     cellsPerString: 6,
-    cellTypeId: 'G2-fully-black-a',
-    halfCut: true,
+    cellTypeId: 'M10-full-black-a',
     standardLayout: true,
     distanceToBorderX: 25,
     distanceToBorderY: 40,

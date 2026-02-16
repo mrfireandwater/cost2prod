@@ -104,10 +104,6 @@ function SubmoduleSettings({
       </div>
       <div className="mt-2 flex flex-wrap gap-3 text-xs">
         <label className="flex items-center gap-1.5">
-          <input type="checkbox" checked={sub.halfCut} onChange={(e) => upd({ halfCut: e.target.checked })} className="rounded" />
-          Half-cut
-        </label>
-        <label className="flex items-center gap-1.5">
           <input type="checkbox" checked={sub.standardLayout} onChange={(e) => upd({ standardLayout: e.target.checked })} className="rounded" />
           Standard layout
         </label>
