@@ -277,10 +277,8 @@ function ModuleSVG({
   const padBottom = 40;
   const viewBox = `0 0 ${Math.max(width, shapeBoundsMaxX) + padRight} ${height + padBottom}`;
 
-  // Determine submodule regions
+  // Determine submodule regions – both submodules use the full module area
   const sub2On = module.submodule2Enabled;
-  const gap = sub2On ? 10 : 0;
-  const sub1H = sub2On ? (height - gap) / 2 : height;
 
   // Compute matrix sizes for dashed rects and dimension annotations
   const sub1Matrix = computeMatrixSize(module.submodule1);
@@ -330,10 +328,9 @@ function ModuleSVG({
   const sub1MatrixTop = sub1Y;
   const sub1MatrixLeft = sub1X;
 
-  // Submodule 2 position annotations (relative to its region)
+  // Submodule 2 position annotations (relative to module origin, same as sub1)
   const sub2X = module.submodule2.distanceToBorderX;
   const sub2Y = module.submodule2.distanceToBorderY;
-  const sub2RegionY = sub1H + gap;
 
   return (
     <svg
@@ -405,22 +402,10 @@ function ModuleSVG({
       {/* Submodule 2 (if enabled) */}
       {sub2On && sub2Matrix && (
         <>
-          {/* Divider line */}
-          <line
-            x1={10}
-            y1={sub1H + gap / 2}
-            x2={width - 10}
-            y2={sub1H + gap / 2}
-            stroke="#64748b"
-            strokeWidth={0.5}
-            strokeDasharray="6 3"
-            opacity={0.5}
-          />
-
           {/* Sub2 dashed border around cell matrix */}
           <rect
             x={sub2X}
-            y={sub2RegionY + sub2Y}
+            y={sub2Y}
             width={sub2Matrix.matrixW}
             height={sub2Matrix.matrixH}
             fill="none"
@@ -433,16 +418,16 @@ function ModuleSVG({
           {/* Submodule 2 X/Y dimension annotations */}
           {sub2X > 5 && (
             <DimensionAnnotation
-              x1={0} y1={sub2RegionY + sub2Y + sub2Matrix.matrixH / 2}
-              x2={sub2X} y2={sub2RegionY + sub2Y + sub2Matrix.matrixH / 2}
+              x1={0} y1={sub2Y + sub2Matrix.matrixH / 2}
+              x2={sub2X} y2={sub2Y + sub2Matrix.matrixH / 2}
               label={`X: ${sub2X} mm`}
               orientation="horizontal"
             />
           )}
           {sub2Y > 5 && (
             <DimensionAnnotation
-              x1={sub2X + sub2Matrix.matrixW / 2} y1={sub2RegionY}
-              x2={sub2X + sub2Matrix.matrixW / 2} y2={sub2RegionY + sub2Y}
+              x1={sub2X + sub2Matrix.matrixW / 2} y1={0}
+              x2={sub2X + sub2Matrix.matrixW / 2} y2={sub2Y}
               label={`Y: ${sub2Y} mm`}
               orientation="vertical"
             />
@@ -456,7 +441,7 @@ function ModuleSVG({
             <SubmoduleSVG
               sub={module.submodule2}
               module={module}
-              regionY={sub2RegionY}
+              regionY={0}
               regionX={0}
             />
           </g>
