@@ -99,6 +99,12 @@ function SubmoduleForm({
         </select>
       </label>
 
+      {/* Submodule position on glass (always visible & editable) */}
+      <div className="grid grid-cols-2 gap-2">
+        <NumberInput label="Position X" value={sub.distanceToBorderX} unit="mm" min={0} step={1} onChange={(v) => upd({ distanceToBorderX: v })} />
+        <NumberInput label="Position Y" value={sub.distanceToBorderY} unit="mm" min={0} step={1} onChange={(v) => upd({ distanceToBorderY: v })} />
+      </div>
+
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
@@ -113,6 +119,7 @@ function SubmoduleForm({
                     distanceToBorderY: cellDef.standardBorderY,
                     distanceBetweenCells: cellDef.standardSpacingY,
                     distanceBetweenStrings: cellDef.standardSpacingX,
+                    junctionBoxSpacing: 10,
                   }
                 : {}),
             });
@@ -123,10 +130,9 @@ function SubmoduleForm({
       </label>
       {!sub.standardLayout && (
         <div className="ml-5 grid grid-cols-2 gap-2">
-          <NumberInput label="Distance to border X" value={sub.distanceToBorderX} unit="mm" min={0} step={1} onChange={(v) => upd({ distanceToBorderX: v })} />
-          <NumberInput label="Distance to border Y" value={sub.distanceToBorderY} unit="mm" min={0} step={1} onChange={(v) => upd({ distanceToBorderY: v })} />
           <NumberInput label="Distance between cells" value={sub.distanceBetweenCells} unit="mm" min={0} step={0.5} onChange={(v) => upd({ distanceBetweenCells: v })} />
           <NumberInput label="Distance between strings" value={sub.distanceBetweenStrings} unit="mm" min={0} step={0.5} onChange={(v) => upd({ distanceBetweenStrings: v })} />
+          <NumberInput label="Junction box spacing" value={sub.junctionBoxSpacing} unit="mm" min={1} step={1} onChange={(v) => upd({ junctionBoxSpacing: v })} />
         </div>
       )}
       {!sub.standardLayout && (
@@ -273,11 +279,18 @@ function ModuleForm({ module }: { module: SolarModule }) {
             <span>Junction boxes (Dosen):</span>
             <span className="font-medium text-slate-700">{module.junctionBoxCount}</span>
           </div>
+          <div className="flex justify-between text-[10px] text-slate-400">
+            <span>= strings/2 per submodule (strings in pairs)</span>
+          </div>
           <div className="flex justify-between">
             <span>Cross-connectors (Querverbinder):</span>
             <span className="font-medium text-slate-700">
               {(module.submodule1.stringAmount - 1) + (module.submodule2Enabled ? (module.submodule2.stringAmount - 1) : 0)}
             </span>
+          </div>
+          <div className="flex justify-between">
+            <span>JB spacing:</span>
+            <span className="font-medium text-slate-700">{module.submodule1.junctionBoxSpacing} mm</span>
           </div>
         </div>
       </fieldset>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import type { SolarModule, SubmoduleConfig } from '../../models/solarModule';
 import { MODULE_COLOR_TYPES, getCellTypeDef } from '../../models/solarModule';
@@ -147,34 +147,25 @@ function SubmoduleSVG({
     );
   }
 
-  return <g transform={groupTransform}>{elements}</g>;
-}
+  // Junction boxes between string pairs
+  // Strings come in pairs: (0,1), (2,3), (4,5), ...
+  // JB count = strings / 2
+  const jbCount = Math.floor(totalCols / 2);
+  const jbWidth = 14;
+  const jbHeight = sub.junctionBoxSpacing;
 
-// Render junction boxes along the right side, one for every 2 strings
-function JunctionBoxesSVG({
-  sub,
-  regionY,
-  regionH,
-  regionW,
-}: {
-  sub: SubmoduleConfig;
-  regionY: number;
-  regionH: number;
-  regionW: number;
-}) {
-  const jbCount = Math.floor(sub.stringAmount / 2) + 1;
-  const jbWidth = 20;
-  const jbHeight = 40;
-  const jbX = regionW - jbWidth - 3;
-  const elements: React.ReactElement[] = [];
-
-  for (let i = 0; i < jbCount; i++) {
-    // Distribute evenly along the right side of the region
-    const spacing = regionH / (jbCount + 1);
-    const jbY = regionY + spacing * (i + 1) - jbHeight / 2;
+  for (let p = 0; p < jbCount; p++) {
+    // Each pair: string 2p and string 2p+1
+    // JB is positioned between the two strings of the pair, below the cell matrix
+    const leftStringIdx = p * 2;
+    const rightStringIdx = p * 2 + 1;
+    const leftX = offsetX + leftStringIdx * (cellW + sub.distanceBetweenStrings);
+    const rightX = offsetX + rightStringIdx * (cellW + sub.distanceBetweenStrings) + cellW;
+    const jbX = (leftX + rightX) / 2 - jbWidth / 2;
+    const jbY = offsetY + matrixH + 4; // below the cell matrix
 
     elements.push(
-      <g key={`jbox-${i}`}>
+      <g key={`jbox-${p}`}>
         <rect
           x={jbX}
           y={jbY}
@@ -182,26 +173,44 @@ function JunctionBoxesSVG({
           height={jbHeight}
           fill="#374151"
           stroke="#6b7280"
-          strokeWidth={1}
-          rx={3}
+          strokeWidth={0.8}
+          rx={2}
         />
         <text
           x={jbX + jbWidth / 2}
-          y={jbY + jbHeight / 2 + 3}
+          y={jbY + jbHeight / 2 + 2.5}
           textAnchor="middle"
-          fontSize={6}
+          fontSize={5}
           fill="#9ca3af"
         >
-          J-Box
+          JB
         </text>
       </g>
     );
   }
 
-  return <>{elements}</>;
+  return <g transform={groupTransform}>{elements}</g>;
 }
 
-function ModuleSVG({ module }: { module: SolarModule }) {
+// Drag state interface
+interface DragState {
+  subKey: 'submodule1' | 'submodule2';
+  startMouseX: number;
+  startMouseY: number;
+  startBorderX: number;
+  startBorderY: number;
+}
+
+function ModuleSVG({
+  module,
+  onSubmoduleDrag,
+}: {
+  module: SolarModule;
+  onSubmoduleDrag?: (subKey: 'submodule1' | 'submodule2', dx: number, dy: number) => void;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+
   const { width, height } = module;
 
   // Backglass: use white as default background
@@ -222,15 +231,61 @@ function ModuleSVG({ module }: { module: SolarModule }) {
   const sub1H = sub2On ? (height - gap) / 2 : height;
   const sub2H = sub2On ? (height - gap) / 2 : 0;
 
+  // Convert screen coordinates to SVG coordinates
+  const screenToSvg = useCallback((screenX: number, screenY: number): { x: number; y: number } => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const inv = ctm.inverse();
+    return {
+      x: inv.a * screenX + inv.c * screenY + inv.e,
+      y: inv.b * screenX + inv.d * screenY + inv.f,
+    };
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent, subKey: 'submodule1' | 'submodule2') => {
+    e.preventDefault();
+    const sub = subKey === 'submodule1' ? module.submodule1 : module.submodule2;
+    const svgPt = screenToSvg(e.clientX, e.clientY);
+    setDragState({
+      subKey,
+      startMouseX: svgPt.x,
+      startMouseY: svgPt.y,
+      startBorderX: sub.distanceToBorderX,
+      startBorderY: sub.distanceToBorderY,
+    });
+  }, [module, screenToSvg]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!dragState || !onSubmoduleDrag) return;
+    const svgPt = screenToSvg(e.clientX, e.clientY);
+    const dx = svgPt.x - dragState.startMouseX;
+    const dy = svgPt.y - dragState.startMouseY;
+    onSubmoduleDrag(dragState.subKey, dragState.startBorderX + dx, dragState.startBorderY + dy);
+  }, [dragState, onSubmoduleDrag, screenToSvg]);
+
+  const handleMouseUp = useCallback(() => {
+    setDragState(null);
+  }, []);
+
   return (
-    <svg viewBox={viewBox} className="h-full w-full" preserveAspectRatio="xMidYMid meet">
+    <svg
+      ref={svgRef}
+      viewBox={viewBox}
+      className="h-full w-full"
+      preserveAspectRatio="xMidYMid meet"
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
       {/* Module outline */}
       <rect x={0} y={0} width={width} height={height} fill="none" stroke="#94a3b8" strokeWidth={1} />
 
       {/* Backglass background */}
       <rect x={0.5} y={0.5} width={width - 1} height={height - 1} fill={bgColor} rx={1} />
 
-      {/* Submodule 1 active area */}
+      {/* Submodule 1 active area (dashed border showing position) */}
       <rect
         x={module.submodule1.distanceToBorderX}
         y={module.submodule1.distanceToBorderY}
@@ -243,23 +298,20 @@ function ModuleSVG({ module }: { module: SolarModule }) {
         opacity={0.4}
       />
 
-      {/* Submodule 1 cells */}
-      <SubmoduleSVG
-        sub={module.submodule1}
-        module={module}
-        regionY={0}
-        regionH={sub1H}
-        regionX={0}
-        regionW={width}
-      />
-
-      {/* Junction boxes for submodule 1 (right side) */}
-      <JunctionBoxesSVG
-        sub={module.submodule1}
-        regionY={0}
-        regionH={sub1H}
-        regionW={width}
-      />
+      {/* Submodule 1 draggable group */}
+      <g
+        style={{ cursor: dragState?.subKey === 'submodule1' ? 'grabbing' : 'grab' }}
+        onMouseDown={(e) => handleMouseDown(e, 'submodule1')}
+      >
+        <SubmoduleSVG
+          sub={module.submodule1}
+          module={module}
+          regionY={0}
+          regionH={sub1H}
+          regionX={0}
+          regionW={width}
+        />
+      </g>
 
       {/* Submodule 2 (if enabled) */}
       {sub2On && (
@@ -289,22 +341,20 @@ function ModuleSVG({ module }: { module: SolarModule }) {
             opacity={0.4}
           />
 
-          <SubmoduleSVG
-            sub={module.submodule2}
-            module={module}
-            regionY={sub1H + gap}
-            regionH={sub2H}
-            regionX={0}
-            regionW={width}
-          />
-
-          {/* Junction boxes for submodule 2 */}
-          <JunctionBoxesSVG
-            sub={module.submodule2}
-            regionY={sub1H + gap}
-            regionH={sub2H}
-            regionW={width}
-          />
+          {/* Submodule 2 draggable group */}
+          <g
+            style={{ cursor: dragState?.subKey === 'submodule2' ? 'grabbing' : 'grab' }}
+            onMouseDown={(e) => handleMouseDown(e, 'submodule2')}
+          >
+            <SubmoduleSVG
+              sub={module.submodule2}
+              module={module}
+              regionY={sub1H + gap}
+              regionH={sub2H}
+              regionX={0}
+              regionW={width}
+            />
+          </g>
         </>
       )}
 
@@ -367,7 +417,21 @@ function ModuleSVG({ module }: { module: SolarModule }) {
 }
 
 export default function ModulePreview() {
-  const { selectedModule } = useAppContext();
+  const { selectedModule, updateSubmodule } = useAppContext();
+
+  const handleSubmoduleDrag = useCallback(
+    (subKey: 'submodule1' | 'submodule2', newBorderX: number, newBorderY: number) => {
+      if (!selectedModule) return;
+      // Clamp to reasonable bounds (min 0)
+      const clampedX = Math.max(0, Math.round(newBorderX));
+      const clampedY = Math.max(0, Math.round(newBorderY));
+      updateSubmodule(selectedModule.id, subKey, {
+        distanceToBorderX: clampedX,
+        distanceToBorderY: clampedY,
+      });
+    },
+    [selectedModule, updateSubmodule],
+  );
 
   if (!selectedModule) {
     return (
@@ -383,11 +447,12 @@ export default function ModulePreview() {
         <h2 className="text-sm font-bold text-slate-700">
           Module Preview: {selectedModule.name}
         </h2>
+        <p className="text-[10px] text-slate-400">Click and drag cells to reposition submodule on glass</p>
       </div>
 
       <div className="flex-1 overflow-hidden p-4">
         <div className="mx-auto h-full" style={{ maxWidth: '600px' }}>
-          <ModuleSVG module={selectedModule} />
+          <ModuleSVG module={selectedModule} onSubmoduleDrag={handleSubmoduleDrag} />
         </div>
       </div>
     </div>

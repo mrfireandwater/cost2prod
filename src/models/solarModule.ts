@@ -93,10 +93,11 @@ export interface SubmoduleConfig {
   cellTypeId: string;             // ID into CELL_TYPE_DEFINITIONS
   halfCut: boolean;
   standardLayout: boolean;
-  distanceToBorderX: number;      // mm
-  distanceToBorderY: number;      // mm
+  distanceToBorderX: number;      // mm – X position of submodule on glass
+  distanceToBorderY: number;      // mm – Y position of submodule on glass
   distanceBetweenCells: number;   // mm
   distanceBetweenStrings: number; // mm
+  junctionBoxSpacing: number;     // mm – spacing for junction boxes (default 10)
   blackRibbonsAndConnectors: boolean;
   rotation: SubmoduleRotation;    // 0, 90, 180, 270 degrees
 }
@@ -123,7 +124,7 @@ export interface SolarModule {
   // Computed
   totalCells: number;
   powerWp: number;
-  junctionBoxCount: number;  // computed: ((strings/2)+1)*submodules
+  junctionBoxCount: number;  // computed: strings/2 per submodule
   // Color for visual identification in tabs
   color: string;
 }
@@ -137,18 +138,16 @@ export function computeSubmoduleCells(sub: SubmoduleConfig): number {
   return sub.stringAmount * sub.cellsPerString;
 }
 
-// Junction box count: ((string_number_per_submod / 2) + 1) * submod_number
+// Junction box count: strings / 2 per submodule (strings come in pairs)
 export function computeJunctionBoxCount(
   submodule1: SubmoduleConfig,
   submodule2Enabled: boolean,
   submodule2: SubmoduleConfig,
 ): number {
-  const stringsPerSubmod1 = submodule1.stringAmount;
-  const jbFromSub1 = Math.floor(stringsPerSubmod1 / 2) + 1;
+  const jbFromSub1 = Math.floor(submodule1.stringAmount / 2);
   let total = jbFromSub1;
   if (submodule2Enabled) {
-    const stringsPerSubmod2 = submodule2.stringAmount;
-    const jbFromSub2 = Math.floor(stringsPerSubmod2 / 2) + 1;
+    const jbFromSub2 = Math.floor(submodule2.stringAmount / 2);
     total += jbFromSub2;
   }
   return total;
@@ -191,6 +190,7 @@ export function createDefaultSubmodule(): SubmoduleConfig {
     distanceToBorderY: 40,
     distanceBetweenCells: 2,
     distanceBetweenStrings: 2,
+    junctionBoxSpacing: 10,
     blackRibbonsAndConnectors: false,
     rotation: 0,
   };
