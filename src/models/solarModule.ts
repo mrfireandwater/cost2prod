@@ -96,6 +96,9 @@ export type ModuleShape = 'rectangle' | 'parallelogram' | 'trapezoid';
 // ── Rotation type ──
 export type SubmoduleRotation = 0 | 90 | 180 | 270;
 
+// ── Submodule key type ──
+export type SubmoduleKey = 'submodule1' | 'submodule2' | 'submodule3' | 'submodule4' | 'submodule5';
+
 // ── Submodule: an independent cell array within a module ──
 export interface SubmoduleConfig {
   stringAmount: number;           // number of strings (columns)
@@ -121,10 +124,18 @@ export interface SolarModule {
   skewAngle: number;    // degrees – parallelogram skew (0 = rectangle)
   cutWidth: number;     // mm – trapezoid corner cut horizontal dimension
   cutHeight: number;    // mm – trapezoid corner cut vertical dimension
+  // Quantity
+  quantity: number;
   // Submodules
   submodule1: SubmoduleConfig;
   submodule2Enabled: boolean;
   submodule2: SubmoduleConfig;
+  submodule3Enabled: boolean;
+  submodule3: SubmoduleConfig;
+  submodule4Enabled: boolean;
+  submodule4: SubmoduleConfig;
+  submodule5Enabled: boolean;
+  submodule5: SubmoduleConfig;
   // Glass configuration
   frontGlassId: string;    // ID into GLASS_TYPE_DEFINITIONS
   backGlassId: string;     // ID into GLASS_TYPE_DEFINITIONS (same list as front)
@@ -149,18 +160,33 @@ export function computeSubmoduleCells(sub: SubmoduleConfig): number {
   return sub.stringAmount * sub.cellsPerString;
 }
 
+/** Get the list of enabled submodules for a module */
+export function getEnabledSubmodules(m: SolarModule): SubmoduleConfig[] {
+  const subs: SubmoduleConfig[] = [m.submodule1];
+  if (m.submodule2Enabled) subs.push(m.submodule2);
+  if (m.submodule3Enabled) subs.push(m.submodule3);
+  if (m.submodule4Enabled) subs.push(m.submodule4);
+  if (m.submodule5Enabled) subs.push(m.submodule5);
+  return subs;
+}
+
 // Junction box count: strings / 2 per submodule (strings come in pairs)
 export function computeJunctionBoxCount(
   submodule1: SubmoduleConfig,
   submodule2Enabled: boolean,
   submodule2: SubmoduleConfig,
+  submodule3Enabled = false,
+  submodule3?: SubmoduleConfig,
+  submodule4Enabled = false,
+  submodule4?: SubmoduleConfig,
+  submodule5Enabled = false,
+  submodule5?: SubmoduleConfig,
 ): number {
-  const jbFromSub1 = Math.floor(submodule1.stringAmount / 2);
-  let total = jbFromSub1;
-  if (submodule2Enabled) {
-    const jbFromSub2 = Math.floor(submodule2.stringAmount / 2);
-    total += jbFromSub2;
-  }
+  let total = Math.floor(submodule1.stringAmount / 2);
+  if (submodule2Enabled) total += Math.floor(submodule2.stringAmount / 2);
+  if (submodule3Enabled && submodule3) total += Math.floor(submodule3.stringAmount / 2);
+  if (submodule4Enabled && submodule4) total += Math.floor(submodule4.stringAmount / 2);
+  if (submodule5Enabled && submodule5) total += Math.floor(submodule5.stringAmount / 2);
   return total;
 }
 
@@ -170,6 +196,12 @@ export function computeModulePower(
   submodule2: SubmoduleConfig,
   moduleColorId: string,
   frontGlassId: string,
+  submodule3Enabled = false,
+  submodule3?: SubmoduleConfig,
+  submodule4Enabled = false,
+  submodule4?: SubmoduleConfig,
+  submodule5Enabled = false,
+  submodule5?: SubmoduleConfig,
 ): number {
   const colorType = MODULE_COLOR_TYPES.find((c) => c.id === moduleColorId);
   const colorFactor = colorType?.factor ?? 1.0;
@@ -179,14 +211,15 @@ export function computeModulePower(
   function subPower(sub: SubmoduleConfig): number {
     const cellDef = getCellTypeDef(sub.cellTypeId);
     const cellUnits = computeSubmoduleCells(sub);
-    // HC cell types: each cell unit is a half-cell, power per unit = wpPerCell / 2
-    // Full cell types: power per unit = wpPerCell
     const powerPerUnit = cellDef.isHalfCut ? cellDef.wpPerCell / 2 : cellDef.wpPerCell;
     return cellUnits * powerPerUnit;
   }
 
   let total = subPower(submodule1);
   if (submodule2Enabled) total += subPower(submodule2);
+  if (submodule3Enabled && submodule3) total += subPower(submodule3);
+  if (submodule4Enabled && submodule4) total += subPower(submodule4);
+  if (submodule5Enabled && submodule5) total += subPower(submodule5);
   return Math.round(total * colorFactor * glassFactor * 10) / 10;
 }
 
@@ -246,6 +279,15 @@ export function createDefaultModule(id: string, name: string): SolarModule {
   const submodule2 = createDefaultSubmodule();
   submodule2.stringAmount = 5;
   submodule2.cellsPerString = 3;
+  const submodule3 = createDefaultSubmodule();
+  submodule3.stringAmount = 4;
+  submodule3.cellsPerString = 3;
+  const submodule4 = createDefaultSubmodule();
+  submodule4.stringAmount = 3;
+  submodule4.cellsPerString = 3;
+  const submodule5 = createDefaultSubmodule();
+  submodule5.stringAmount = 2;
+  submodule5.cellsPerString = 3;
   const moduleColorId = 'standard';
   const frontGlassId = 'tempered-3.2mm-clear';
   const totalCells = computeSubmoduleCells(submodule1);
@@ -255,6 +297,7 @@ export function createDefaultModule(id: string, name: string): SolarModule {
   return {
     id,
     name,
+    quantity: 1,
     width: 1134,
     height: 1722,
     shape: 'rectangle' as ModuleShape,
@@ -264,6 +307,12 @@ export function createDefaultModule(id: string, name: string): SolarModule {
     submodule1,
     submodule2Enabled: false,
     submodule2,
+    submodule3Enabled: false,
+    submodule3,
+    submodule4Enabled: false,
+    submodule4,
+    submodule5Enabled: false,
+    submodule5,
     frontGlassId,
     backGlassId: 'tempered-3.2mm-clear',
     moduleColorId,

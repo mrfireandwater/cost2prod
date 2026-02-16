@@ -1,6 +1,6 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import type { SolarModule, SubmoduleConfig } from '../../models/solarModule';
+import type { SolarModule, SubmoduleConfig, SubmoduleKey } from '../../models/solarModule';
 import { MODULE_COLOR_TYPES, getCellTypeDef, computeShapePoints } from '../../models/solarModule';
 
 // Compute the cell matrix dimensions for a submodule (in mm)
@@ -239,7 +239,7 @@ function DimensionAnnotation({
 
 // Drag state interface
 interface DragState {
-  subKey: 'submodule1' | 'submodule2';
+  subKey: SubmoduleKey;
   startMouseX: number;
   startMouseY: number;
   startBorderX: number;
@@ -251,7 +251,7 @@ function ModuleSVG({
   onSubmoduleDrag,
 }: {
   module: SolarModule;
-  onSubmoduleDrag?: (subKey: 'submodule1' | 'submodule2', newX: number, newY: number) => void;
+  onSubmoduleDrag?: (subKey: SubmoduleKey, newX: number, newY: number) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -277,12 +277,18 @@ function ModuleSVG({
   const padBottom = 40;
   const viewBox = `0 0 ${Math.max(width, shapeBoundsMaxX) + padRight} ${height + padBottom}`;
 
-  // Determine submodule regions – both submodules use the full module area
+  // Determine submodule regions
   const sub2On = module.submodule2Enabled;
+  const sub3On = module.submodule3Enabled;
+  const sub4On = module.submodule4Enabled;
+  const sub5On = module.submodule5Enabled;
 
   // Compute matrix sizes for dashed rects and dimension annotations
   const sub1Matrix = computeMatrixSize(module.submodule1);
   const sub2Matrix = sub2On ? computeMatrixSize(module.submodule2) : null;
+  const sub3Matrix = sub3On ? computeMatrixSize(module.submodule3) : null;
+  const sub4Matrix = sub4On ? computeMatrixSize(module.submodule4) : null;
+  const sub5Matrix = sub5On ? computeMatrixSize(module.submodule5) : null;
 
   // Convert screen coordinates to SVG coordinates
   const screenToSvg = useCallback((screenX: number, screenY: number): { x: number; y: number } => {
@@ -297,9 +303,9 @@ function ModuleSVG({
     };
   }, []);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, subKey: 'submodule1' | 'submodule2') => {
+  const handleMouseDown = useCallback((e: React.MouseEvent, subKey: SubmoduleKey) => {
     e.preventDefault();
-    const sub = subKey === 'submodule1' ? module.submodule1 : module.submodule2;
+    const sub = module[subKey];
     const svgPt = screenToSvg(e.clientX, e.clientY);
     setDragState({
       subKey,
@@ -448,6 +454,33 @@ function ModuleSVG({
         </>
       )}
 
+      {/* Submodules 3, 4, 5 (if enabled) */}
+      {([
+        { on: sub3On, sub: module.submodule3, matrix: sub3Matrix, key: 'submodule3' as SubmoduleKey },
+        { on: sub4On, sub: module.submodule4, matrix: sub4Matrix, key: 'submodule4' as SubmoduleKey },
+        { on: sub5On, sub: module.submodule5, matrix: sub5Matrix, key: 'submodule5' as SubmoduleKey },
+      ] as const).map(({ on, sub, matrix, key }) => on && matrix && (
+        <React.Fragment key={key}>
+          <rect
+            x={sub.distanceToBorderX}
+            y={sub.distanceToBorderY}
+            width={matrix.matrixW}
+            height={matrix.matrixH}
+            fill="none"
+            stroke="#3b82f6"
+            strokeWidth={0.5}
+            strokeDasharray="4 2"
+            opacity={0.4}
+          />
+          <g
+            style={{ cursor: dragState?.subKey === key ? 'grabbing' : 'grab' }}
+            onMouseDown={(e) => handleMouseDown(e, key)}
+          >
+            <SubmoduleSVG sub={sub} module={module} regionY={0} regionX={0} />
+          </g>
+        </React.Fragment>
+      ))}
+
       {/* Semi-transparent module color overlay (shape-aware) */}
       <polygon
         points={shapePointsStr}
@@ -533,7 +566,7 @@ export default function ModulePreview() {
   const { selectedModule, updateSubmodule } = useAppContext();
 
   const handleSubmoduleDrag = useCallback(
-    (subKey: 'submodule1' | 'submodule2', newBorderX: number, newBorderY: number) => {
+    (subKey: SubmoduleKey, newBorderX: number, newBorderY: number) => {
       if (!selectedModule) return;
       // Clamp to reasonable bounds (min 0)
       const clampedX = Math.max(0, Math.round(newBorderX));

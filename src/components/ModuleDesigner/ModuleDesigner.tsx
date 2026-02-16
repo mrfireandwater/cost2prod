@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import type { SolarModule, SubmoduleConfig, SubmoduleRotation, ModuleShape } from '../../models/solarModule';
+import type { SolarModule, SubmoduleConfig, SubmoduleKey, SubmoduleRotation, ModuleShape } from '../../models/solarModule';
 import {
   MODULE_COLOR_TYPES,
   CELL_TYPE_DEFINITIONS,
@@ -44,7 +44,7 @@ function SubmoduleForm({
 }: {
   sub: SubmoduleConfig;
   moduleId: string;
-  subKey: 'submodule1' | 'submodule2';
+  subKey: SubmoduleKey;
 }) {
   const { updateSubmodule } = useAppContext();
   const upd = (updates: Partial<SubmoduleConfig>) => updateSubmodule(moduleId, subKey, updates);
@@ -204,8 +204,8 @@ function ModuleForm({ module }: { module: SolarModule }) {
 
   return (
     <div className="space-y-4">
-      {/* Name & Color */}
-      <div className="grid grid-cols-[1fr_auto] gap-2">
+      {/* Name, Quantity & Color */}
+      <div className="grid grid-cols-[1fr_auto_auto] gap-2">
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-slate-500">Module Name</span>
           <input
@@ -213,6 +213,16 @@ function ModuleForm({ module }: { module: SolarModule }) {
             className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
             value={module.name}
             onChange={(e) => update({ name: e.target.value })}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-slate-500">Quantity</span>
+          <input
+            type="number"
+            className="w-16 rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+            value={module.quantity}
+            min={1}
+            onChange={(e) => update({ quantity: Math.max(1, Number(e.target.value)) })}
           />
         </label>
         <label className="flex flex-col gap-1">
@@ -332,6 +342,69 @@ function ModuleForm({ module }: { module: SolarModule }) {
         )}
       </fieldset>
 
+      {/* Submodul 3 (optional) */}
+      <fieldset className="rounded border border-slate-200 p-2">
+        <legend className="px-1 text-xs font-semibold text-slate-600">
+          <label className="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={module.submodule3Enabled}
+              onChange={(e) => update({ submodule3Enabled: e.target.checked })}
+              className="rounded"
+            />
+            Submodul 3
+          </label>
+        </legend>
+        {module.submodule3Enabled && (
+          <SubmoduleForm sub={module.submodule3} moduleId={id} subKey="submodule3" />
+        )}
+        {!module.submodule3Enabled && (
+          <div className="text-xs text-slate-400 italic py-1">Enable to add a third cell array</div>
+        )}
+      </fieldset>
+
+      {/* Submodul 4 (optional) */}
+      <fieldset className="rounded border border-slate-200 p-2">
+        <legend className="px-1 text-xs font-semibold text-slate-600">
+          <label className="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={module.submodule4Enabled}
+              onChange={(e) => update({ submodule4Enabled: e.target.checked })}
+              className="rounded"
+            />
+            Submodul 4
+          </label>
+        </legend>
+        {module.submodule4Enabled && (
+          <SubmoduleForm sub={module.submodule4} moduleId={id} subKey="submodule4" />
+        )}
+        {!module.submodule4Enabled && (
+          <div className="text-xs text-slate-400 italic py-1">Enable to add a fourth cell array</div>
+        )}
+      </fieldset>
+
+      {/* Submodul 5 (optional) */}
+      <fieldset className="rounded border border-slate-200 p-2">
+        <legend className="px-1 text-xs font-semibold text-slate-600">
+          <label className="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={module.submodule5Enabled}
+              onChange={(e) => update({ submodule5Enabled: e.target.checked })}
+              className="rounded"
+            />
+            Submodul 5
+          </label>
+        </legend>
+        {module.submodule5Enabled && (
+          <SubmoduleForm sub={module.submodule5} moduleId={id} subKey="submodule5" />
+        )}
+        {!module.submodule5Enabled && (
+          <div className="text-xs text-slate-400 italic py-1">Enable to add a fifth cell array</div>
+        )}
+      </fieldset>
+
       {/* Junction boxes & Cross-connectors (read-only computed) */}
       <fieldset className="rounded border border-slate-200 p-2">
         <legend className="px-1 text-xs font-semibold text-slate-600">Junction Boxes & Cross-connectors</legend>
@@ -346,7 +419,11 @@ function ModuleForm({ module }: { module: SolarModule }) {
           <div className="flex justify-between">
             <span>Cross-connectors (Querverbinder):</span>
             <span className="font-medium text-slate-700">
-              {(module.submodule1.stringAmount - 1) + (module.submodule2Enabled ? (module.submodule2.stringAmount - 1) : 0)}
+              {(module.submodule1.stringAmount - 1)
+                + (module.submodule2Enabled ? (module.submodule2.stringAmount - 1) : 0)
+                + (module.submodule3Enabled ? (module.submodule3.stringAmount - 1) : 0)
+                + (module.submodule4Enabled ? (module.submodule4.stringAmount - 1) : 0)
+                + (module.submodule5Enabled ? (module.submodule5.stringAmount - 1) : 0)}
             </span>
           </div>
           <div className="flex justify-between">

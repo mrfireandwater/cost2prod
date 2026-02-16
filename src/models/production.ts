@@ -365,6 +365,44 @@ export function calculateCosts(
 // Cost optimization helpers
 // ════════════════════════════════════════════
 
+// ════════════════════════════════════════════
+// Quantity-based cost calculation
+// ════════════════════════════════════════════
+
+/** Separate fixed (one-time) and variable (per-unit) costs */
+export function calculateFixedAndVariableCosts(
+  sections: ProductionSection[],
+  materialConfig: MaterialConfig,
+  stringConfig: StringConfig,
+  spacingConfig: SpacingConfig,
+  marginConfig: MarginConfig,
+  params: ModuleCostParams,
+): { fixedCost: number; variableCost: number } {
+  const { totalCost } = calculateCosts(sections, materialConfig, stringConfig, spacingConfig, marginConfig, params);
+
+  // Fixed costs: baseCostCHF from each section + non-standard setup
+  let fixedCost = 0;
+  for (const section of sections) {
+    fixedCost += section.baseCostCHF;
+  }
+  if (!params.isStandardString) {
+    fixedCost += stringConfig.nonStandardSetupCost;
+  }
+  fixedCost = Math.round(fixedCost * 100) / 100;
+
+  const variableCost = Math.round((totalCost - fixedCost) * 100) / 100;
+  return { fixedCost, variableCost };
+}
+
+/** Cost per unit at a given production quantity */
+export function costPerUnitAtQuantity(fixedCost: number, variableCost: number, quantity: number): number {
+  return Math.round((fixedCost / quantity + variableCost) * 100) / 100;
+}
+
+// ════════════════════════════════════════════
+// Cost optimization helpers
+// ════════════════════════════════════════════
+
 // Compute the "best case" cost for the same power output:
 // standard layout, cheapest cell per Wp, category (a) glass
 export function computeOptimalCost(

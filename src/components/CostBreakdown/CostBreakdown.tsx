@@ -1,10 +1,10 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from 'recharts';
 import { useAppContext } from '../../context/AppContext';
 
 const COLORS = ['#6366f1', '#3b82f6', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7', '#ef4444'];
 
 export default function CostBreakdown() {
-  const { sectionCosts, totalCost, selectedModule } = useAppContext();
+  const { sectionCosts, totalCost, selectedModule, quantityCostCurve } = useAppContext();
 
   if (!selectedModule) {
     return (
@@ -133,6 +133,60 @@ export default function CostBreakdown() {
             </tbody>
           </table>
         </div>
+
+        {/* Quantity cost curve */}
+        {quantityCostCurve.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-slate-600 mb-1">Production Cost per Unit by Quantity</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={quantityCostCurve} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis
+                  dataKey="quantity"
+                  tick={{ fontSize: 10 }}
+                  label={{ value: 'Modules', position: 'insideBottomRight', offset: -2, fontSize: 10 }}
+                />
+                <YAxis
+                  tick={{ fontSize: 10 }}
+                  label={{ value: 'CHF / unit', angle: -90, position: 'insideLeft', fontSize: 10 }}
+                  domain={['auto', 'auto']}
+                />
+                <Tooltip
+                  formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)} CHF`, 'Cost per unit']}
+                  labelFormatter={(label) => `${label} modules`}
+                  contentStyle={{ fontSize: 12 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="costPerUnit"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: '#6366f1' }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            {/* Quantity cost table */}
+            <table className="w-full text-xs mt-2">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-slate-500">
+                  <th className="py-1">Qty</th>
+                  <th className="py-1 text-right">Cost/Unit (CHF)</th>
+                  <th className="py-1 text-right">Total (CHF)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quantityCostCurve.map((pt) => (
+                  <tr key={pt.quantity} className="border-b border-slate-100">
+                    <td className="py-1">{pt.quantity}</td>
+                    <td className="py-1 text-right font-medium">{pt.costPerUnit.toFixed(2)}</td>
+                    <td className="py-1 text-right text-slate-500">{(pt.costPerUnit * pt.quantity).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

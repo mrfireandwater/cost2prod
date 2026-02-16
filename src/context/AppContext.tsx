@@ -3,10 +3,12 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   type SolarModule,
   type SubmoduleConfig,
+  type SubmoduleKey,
   createDefaultModule,
   computeSubmoduleCells,
   computeModulePower,
   computeJunctionBoxCount,
+  getEnabledSubmodules,
   getGlassTypeDef,
 } from '../models/solarModule';
 import {
@@ -17,6 +19,8 @@ import {
   DEFAULT_MARGIN_CONFIG,
   calculateCosts,
   computeOptimalCost,
+  calculateFixedAndVariableCosts,
+  costPerUnitAtQuantity,
   type ProductionSection,
   type ProductionSubStep,
   type MaterialConfig,
@@ -42,13 +46,15 @@ interface AppState {
   optimalCost: number;
   costOptimizationDelta: number; // current - optimal in CHF
   costOptimizationRatio: number; // 0=green(optimal) to 1=red(far from optimal)
+  // Quantity cost curve data
+  quantityCostCurve: { quantity: number; costPerUnit: number }[];
 }
 
 interface AppActions {
   addModule: () => void;
   removeModule: (id: string) => void;
   updateModule: (id: string, updates: Partial<SolarModule>) => void;
-  updateSubmodule: (moduleId: string, subKey: 'submodule1' | 'submodule2', updates: Partial<SubmoduleConfig>) => void;
+  updateSubmodule: (moduleId: string, subKey: SubmoduleKey, updates: Partial<SubmoduleConfig>) => void;
   selectModule: (id: string | null) => void;
   updateSection: (id: string, updates: Partial<ProductionSection>) => void;
   updateSubStep: (sectionId: string, subStepId: string, updates: Partial<ProductionSubStep>) => void;
@@ -92,13 +98,19 @@ function saveSelectedId(id: string | null) {
 
 // Recompute derived fields on a module
 function recompute(m: SolarModule): SolarModule {
-  const sub1Cells = computeSubmoduleCells(m.submodule1);
-  const sub2Cells = m.submodule2Enabled ? computeSubmoduleCells(m.submodule2) : 0;
+  const enabledSubs = getEnabledSubmodules(m);
+  const totalCells = enabledSubs.reduce((sum, s) => sum + computeSubmoduleCells(s), 0);
   return {
     ...m,
-    totalCells: sub1Cells + sub2Cells,
-    powerWp: computeModulePower(m.submodule1, m.submodule2Enabled, m.submodule2, m.moduleColorId, m.frontGlassId),
-    junctionBoxCount: computeJunctionBoxCount(m.submodule1, m.submodule2Enabled, m.submodule2),
+    totalCells,
+    powerWp: computeModulePower(
+      m.submodule1, m.submodule2Enabled, m.submodule2, m.moduleColorId, m.frontGlassId,
+      m.submodule3Enabled, m.submodule3, m.submodule4Enabled, m.submodule4, m.submodule5Enabled, m.submodule5,
+    ),
+    junctionBoxCount: computeJunctionBoxCount(
+      m.submodule1, m.submodule2Enabled, m.submodule2,
+      m.submodule3Enabled, m.submodule3, m.submodule4Enabled, m.submodule4, m.submodule5Enabled, m.submodule5,
+    ),
   };
 }
 
@@ -130,12 +142,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Build cost params from the selected module
   function buildCostParams(mod: SolarModule): ModuleCostParams {
     const sub1 = mod.submodule1;
+    const enabledSubs = getEnabledSubmodules(mod);
     const frontGlass = getGlassTypeDef(mod.frontGlassId);
     const backGlass = getGlassTypeDef(mod.backGlassId);
     return {
       totalCells: mod.totalCells,
       areaM2: (mod.width * mod.height) / 1_000_000,
-      numStrings: sub1.stringAmount + (mod.submodule2Enabled ? mod.submodule2.stringAmount : 0),
+      numStrings: enabledSubs.reduce((sum, s) => sum + s.stringAmount, 0),
       cellTypeId: sub1.cellTypeId,
       frontGlassId: mod.frontGlassId,
       backGlassId: mod.backGlassId,
@@ -153,19 +166,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   // Calculate costs for selected module
-  const { sectionCosts, totalCost, optimalCost, costOptimizationDelta, costOptimizationRatio } = (() => {
-    if (!selectedModule) return { sectionCosts: [] as SectionCost[], totalCost: 0, optimalCost: 0, costOptimizationDelta: 0, costOptimizationRatio: 0 };
+  const QUANTITY_STEPS = [1, 5, 10, 20, 50, 100, 200, 1000];
+
+  const { sectionCosts, totalCost, optimalCost, costOptimizationDelta, costOptimizationRatio, quantityCostCurve } = (() => {
+    if (!selectedModule) return { sectionCosts: [] as SectionCost[], totalCost: 0, optimalCost: 0, costOptimizationDelta: 0, costOptimizationRatio: 0, quantityCostCurve: [] as { quantity: number; costPerUnit: number }[] };
     const params = buildCostParams(selectedModule);
     const result = calculateCosts(sections, materialConfig, stringConfig, spacingConfig, marginConfig, params);
     const optimal = computeOptimalCost(sections, materialConfig, stringConfig, spacingConfig, marginConfig, params, selectedModule.powerWp);
     const delta = Math.max(0, result.totalCost - optimal);
-    // Ratio: 0 = at optimal, 1 = 50+ CHF above optimal
     const ratio = Math.min(1, delta / 50);
+
+    // Quantity cost curve
+    const { fixedCost, variableCost } = calculateFixedAndVariableCosts(sections, materialConfig, stringConfig, spacingConfig, marginConfig, params);
+    const quantityCostCurve = QUANTITY_STEPS.map((q) => ({
+      quantity: q,
+      costPerUnit: costPerUnitAtQuantity(fixedCost, variableCost, q),
+    }));
+
     return {
       ...result,
       optimalCost: Math.round(optimal * 100) / 100,
       costOptimizationDelta: Math.round(delta * 100) / 100,
       costOptimizationRatio: ratio,
+      quantityCostCurve,
     };
   })();
 
@@ -189,7 +212,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const updateSubmodule = useCallback((moduleId: string, subKey: 'submodule1' | 'submodule2', updates: Partial<SubmoduleConfig>) => {
+  const updateSubmodule = useCallback((moduleId: string, subKey: SubmoduleKey, updates: Partial<SubmoduleConfig>) => {
     setModules((prev) =>
       prev.map((m) => {
         if (m.id !== moduleId) return m;
@@ -257,6 +280,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         optimalCost,
         costOptimizationDelta,
         costOptimizationRatio,
+        quantityCostCurve,
         addModule,
         removeModule,
         updateModule,
