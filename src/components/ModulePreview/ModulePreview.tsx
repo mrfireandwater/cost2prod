@@ -3,44 +3,35 @@ import { useAppContext } from '../../context/AppContext';
 import type { SolarModule, SubmoduleConfig } from '../../models/solarModule';
 import { MODULE_COLOR_TYPES, getCellTypeDef } from '../../models/solarModule';
 
-// Render a single submodule's cell matrix, ribbons, and cross connectors
+// Compute the cell matrix dimensions for a submodule (in mm)
+function computeMatrixSize(sub: SubmoduleConfig) {
+  const cellDef = getCellTypeDef(sub.cellTypeId);
+  const cellW = cellDef.sizeMm;
+  const cellH = sub.halfCut ? cellDef.sizeMm / 2 : cellDef.sizeMm;
+  const totalCols = sub.stringAmount;
+  const totalRows = sub.cellsPerString;
+  const matrixW = totalCols * cellW + (totalCols - 1) * sub.distanceBetweenStrings;
+  const matrixH = totalRows * cellH + (totalRows - 1) * sub.distanceBetweenCells;
+  return { matrixW, matrixH, cellW, cellH, totalCols, totalRows };
+}
+
+// Render a single submodule's cell matrix, ribbons, cross connectors, and junction boxes
 function SubmoduleSVG({
   sub,
   module,
   regionY,
-  regionH,
   regionX,
-  regionW,
 }: {
   sub: SubmoduleConfig;
   module: SolarModule;
   regionY: number;
-  regionH: number;
   regionX: number;
-  regionW: number;
 }) {
-  const cellDef = getCellTypeDef(sub.cellTypeId);
-  const marginX = sub.distanceToBorderX;
-  const marginY = sub.distanceToBorderY;
+  const { matrixW, matrixH, cellW, cellH, totalCols, totalRows } = computeMatrixSize(sub);
 
-  const activeWidth = regionW - 2 * marginX;
-  const activeHeight = regionH - 2 * marginY;
-
-  // Cell units: cellsPerString = number of cell units
-  // If halfCut, each unit is physically half a cell (shorter), but still counts as 1
-  const totalRows = sub.cellsPerString; // cell units per string
-  const totalCols = sub.stringAmount;
-
-  const cellSizeMm = cellDef.sizeMm;
-  const cellW = cellSizeMm;
-  // If half-cut, the physical cell height is half the cell size
-  const cellH = sub.halfCut ? cellSizeMm / 2 : cellSizeMm;
-
-  // Center the cell matrix within the active area
-  const matrixW = totalCols * cellW + (totalCols - 1) * sub.distanceBetweenStrings;
-  const matrixH = totalRows * cellH + (totalRows - 1) * sub.distanceBetweenCells;
-  const offsetX = regionX + marginX + (activeWidth - matrixW) / 2;
-  const offsetY = regionY + marginY + (activeHeight - matrixH) / 2;
+  // Position: distanceToBorderX/Y is the offset from region origin to matrix top-left
+  const offsetX = regionX + sub.distanceToBorderX;
+  const offsetY = regionY + sub.distanceToBorderY;
 
   // Cell color from module color
   const colorType = MODULE_COLOR_TYPES.find((c) => c.id === module.moduleColorId);
@@ -51,9 +42,9 @@ function SubmoduleSVG({
 
   const elements: React.ReactElement[] = [];
 
-  // Apply rotation transform
-  const centerX = regionX + regionW / 2;
-  const centerY = regionY + regionH / 2;
+  // Apply rotation transform around the matrix center
+  const centerX = offsetX + matrixW / 2;
+  const centerY = offsetY + matrixH / 2;
   const rotation = sub.rotation;
   const groupTransform = rotation !== 0
     ? `rotate(${rotation}, ${centerX}, ${centerY})`
@@ -148,21 +139,17 @@ function SubmoduleSVG({
   }
 
   // Junction boxes between string pairs
-  // Strings come in pairs: (0,1), (2,3), (4,5), ...
-  // JB count = strings / 2
   const jbCount = Math.floor(totalCols / 2);
   const jbWidth = 14;
   const jbHeight = sub.junctionBoxSpacing;
 
   for (let p = 0; p < jbCount; p++) {
-    // Each pair: string 2p and string 2p+1
-    // JB is positioned between the two strings of the pair, below the cell matrix
     const leftStringIdx = p * 2;
     const rightStringIdx = p * 2 + 1;
     const leftX = offsetX + leftStringIdx * (cellW + sub.distanceBetweenStrings);
     const rightX = offsetX + rightStringIdx * (cellW + sub.distanceBetweenStrings) + cellW;
     const jbX = (leftX + rightX) / 2 - jbWidth / 2;
-    const jbY = offsetY + matrixH + 4; // below the cell matrix
+    const jbY = offsetY + matrixH + 4;
 
     elements.push(
       <g key={`jbox-${p}`}>
@@ -192,6 +179,64 @@ function SubmoduleSVG({
   return <g transform={groupTransform}>{elements}</g>;
 }
 
+// Dimension annotation: a line with arrows and a label between two points
+function DimensionAnnotation({
+  x1, y1, x2, y2, label, orientation,
+}: {
+  x1: number; y1: number; x2: number; y2: number;
+  label: string; orientation: 'horizontal' | 'vertical';
+}) {
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+
+  return (
+    <g pointerEvents="none">
+      <line
+        x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke="#f97316"
+        strokeWidth={0.6}
+        strokeDasharray="3 1.5"
+      />
+      {/* Small ticks at ends */}
+      {orientation === 'horizontal' ? (
+        <>
+          <line x1={x1} y1={y1 - 4} x2={x1} y2={y1 + 4} stroke="#f97316" strokeWidth={0.6} />
+          <line x1={x2} y1={y2 - 4} x2={x2} y2={y2 + 4} stroke="#f97316" strokeWidth={0.6} />
+        </>
+      ) : (
+        <>
+          <line x1={x1 - 4} y1={y1} x2={x1 + 4} y2={y1} stroke="#f97316" strokeWidth={0.6} />
+          <line x1={x2 - 4} y1={y2} x2={x2 + 4} y2={y2} stroke="#f97316" strokeWidth={0.6} />
+        </>
+      )}
+      {/* Label */}
+      {orientation === 'horizontal' ? (
+        <text
+          x={midX}
+          y={midY - 4}
+          textAnchor="middle"
+          fontSize={8}
+          fill="#f97316"
+          fontWeight="bold"
+        >
+          {label}
+        </text>
+      ) : (
+        <text
+          x={midX + 6}
+          y={midY + 3}
+          textAnchor="start"
+          fontSize={8}
+          fill="#f97316"
+          fontWeight="bold"
+        >
+          {label}
+        </text>
+      )}
+    </g>
+  );
+}
+
 // Drag state interface
 interface DragState {
   subKey: 'submodule1' | 'submodule2';
@@ -206,7 +251,7 @@ function ModuleSVG({
   onSubmoduleDrag,
 }: {
   module: SolarModule;
-  onSubmoduleDrag?: (subKey: 'submodule1' | 'submodule2', dx: number, dy: number) => void;
+  onSubmoduleDrag?: (subKey: 'submodule1' | 'submodule2', newX: number, newY: number) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -229,7 +274,10 @@ function ModuleSVG({
   const sub2On = module.submodule2Enabled;
   const gap = sub2On ? 10 : 0;
   const sub1H = sub2On ? (height - gap) / 2 : height;
-  const sub2H = sub2On ? (height - gap) / 2 : 0;
+
+  // Compute matrix sizes for dashed rects and dimension annotations
+  const sub1Matrix = computeMatrixSize(module.submodule1);
+  const sub2Matrix = sub2On ? computeMatrixSize(module.submodule2) : null;
 
   // Convert screen coordinates to SVG coordinates
   const screenToSvg = useCallback((screenX: number, screenY: number): { x: number; y: number } => {
@@ -269,6 +317,17 @@ function ModuleSVG({
     setDragState(null);
   }, []);
 
+  // Submodule 1 position annotations
+  const sub1X = module.submodule1.distanceToBorderX;
+  const sub1Y = module.submodule1.distanceToBorderY;
+  const sub1MatrixTop = sub1Y;
+  const sub1MatrixLeft = sub1X;
+
+  // Submodule 2 position annotations (relative to its region)
+  const sub2X = module.submodule2.distanceToBorderX;
+  const sub2Y = module.submodule2.distanceToBorderY;
+  const sub2RegionY = sub1H + gap;
+
   return (
     <svg
       ref={svgRef}
@@ -285,18 +344,36 @@ function ModuleSVG({
       {/* Backglass background */}
       <rect x={0.5} y={0.5} width={width - 1} height={height - 1} fill={bgColor} rx={1} />
 
-      {/* Submodule 1 active area (dashed border showing position) */}
+      {/* Submodule 1 dashed border around cell matrix */}
       <rect
-        x={module.submodule1.distanceToBorderX}
-        y={module.submodule1.distanceToBorderY}
-        width={width - 2 * module.submodule1.distanceToBorderX}
-        height={sub1H - 2 * module.submodule1.distanceToBorderY}
+        x={sub1MatrixLeft}
+        y={sub1MatrixTop}
+        width={sub1Matrix.matrixW}
+        height={sub1Matrix.matrixH}
         fill="none"
         stroke="#3b82f6"
         strokeWidth={0.5}
         strokeDasharray="4 2"
         opacity={0.4}
       />
+
+      {/* Submodule 1 X/Y dimension annotations */}
+      {sub1X > 5 && (
+        <DimensionAnnotation
+          x1={0} y1={sub1MatrixTop + sub1Matrix.matrixH / 2}
+          x2={sub1MatrixLeft} y2={sub1MatrixTop + sub1Matrix.matrixH / 2}
+          label={`X: ${sub1X} mm`}
+          orientation="horizontal"
+        />
+      )}
+      {sub1Y > 5 && (
+        <DimensionAnnotation
+          x1={sub1MatrixLeft + sub1Matrix.matrixW / 2} y1={0}
+          x2={sub1MatrixLeft + sub1Matrix.matrixW / 2} y2={sub1MatrixTop}
+          label={`Y: ${sub1Y} mm`}
+          orientation="vertical"
+        />
+      )}
 
       {/* Submodule 1 draggable group */}
       <g
@@ -307,14 +384,12 @@ function ModuleSVG({
           sub={module.submodule1}
           module={module}
           regionY={0}
-          regionH={sub1H}
           regionX={0}
-          regionW={width}
         />
       </g>
 
       {/* Submodule 2 (if enabled) */}
-      {sub2On && (
+      {sub2On && sub2Matrix && (
         <>
           {/* Divider line */}
           <line
@@ -328,18 +403,36 @@ function ModuleSVG({
             opacity={0.5}
           />
 
-          {/* Sub2 active area */}
+          {/* Sub2 dashed border around cell matrix */}
           <rect
-            x={module.submodule2.distanceToBorderX}
-            y={sub1H + gap + module.submodule2.distanceToBorderY}
-            width={width - 2 * module.submodule2.distanceToBorderX}
-            height={sub2H - 2 * module.submodule2.distanceToBorderY}
+            x={sub2X}
+            y={sub2RegionY + sub2Y}
+            width={sub2Matrix.matrixW}
+            height={sub2Matrix.matrixH}
             fill="none"
             stroke="#3b82f6"
             strokeWidth={0.5}
             strokeDasharray="4 2"
             opacity={0.4}
           />
+
+          {/* Submodule 2 X/Y dimension annotations */}
+          {sub2X > 5 && (
+            <DimensionAnnotation
+              x1={0} y1={sub2RegionY + sub2Y + sub2Matrix.matrixH / 2}
+              x2={sub2X} y2={sub2RegionY + sub2Y + sub2Matrix.matrixH / 2}
+              label={`X: ${sub2X} mm`}
+              orientation="horizontal"
+            />
+          )}
+          {sub2Y > 5 && (
+            <DimensionAnnotation
+              x1={sub2X + sub2Matrix.matrixW / 2} y1={sub2RegionY}
+              x2={sub2X + sub2Matrix.matrixW / 2} y2={sub2RegionY + sub2Y}
+              label={`Y: ${sub2Y} mm`}
+              orientation="vertical"
+            />
+          )}
 
           {/* Submodule 2 draggable group */}
           <g
@@ -349,10 +442,8 @@ function ModuleSVG({
             <SubmoduleSVG
               sub={module.submodule2}
               module={module}
-              regionY={sub1H + gap}
-              regionH={sub2H}
+              regionY={sub2RegionY}
               regionX={0}
-              regionW={width}
             />
           </g>
         </>
@@ -370,7 +461,7 @@ function ModuleSVG({
         pointerEvents="none"
       />
 
-      {/* Dimension annotations */}
+      {/* Dimension annotations (overall module size) */}
       <line
         x1={0}
         y1={height + 15}
