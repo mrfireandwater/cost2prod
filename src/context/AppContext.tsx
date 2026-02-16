@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import {
   type SolarModule,
@@ -60,6 +60,35 @@ interface AppActions {
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
 
+// ── LocalStorage persistence ──
+const STORAGE_KEY_MODULES = 'cost2prod-modules';
+const STORAGE_KEY_SELECTED = 'cost2prod-selected-module';
+
+function loadModules(): SolarModule[] | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_MODULES);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed as SolarModule[];
+  } catch { /* ignore corrupt data */ }
+  return null;
+}
+
+function saveModules(modules: SolarModule[]) {
+  try { localStorage.setItem(STORAGE_KEY_MODULES, JSON.stringify(modules)); } catch { /* quota exceeded */ }
+}
+
+function loadSelectedId(): string | null {
+  try { return localStorage.getItem(STORAGE_KEY_SELECTED); } catch { return null; }
+}
+
+function saveSelectedId(id: string | null) {
+  try {
+    if (id) localStorage.setItem(STORAGE_KEY_SELECTED, id);
+    else localStorage.removeItem(STORAGE_KEY_SELECTED);
+  } catch { /* ignore */ }
+}
+
 // Recompute derived fields on a module
 function recompute(m: SolarModule): SolarModule {
   const sub1Cells = computeSubmoduleCells(m.submodule1);
@@ -74,15 +103,26 @@ function recompute(m: SolarModule): SolarModule {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [modules, setModules] = useState<SolarModule[]>(() => {
-    const m = createDefaultModule(uuidv4(), 'Module 1');
-    return [m];
+    const saved = loadModules();
+    if (saved) return saved;
+    return [createDefaultModule(uuidv4(), 'Module 1')];
   });
-  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(() => {
+    const savedId = loadSelectedId();
+    // Validate that the saved ID exists in the loaded modules
+    const saved = loadModules();
+    if (savedId && saved?.some((m) => m.id === savedId)) return savedId;
+    return null;
+  });
   const [sections, setSections] = useState<ProductionSection[]>(DEFAULT_SECTIONS);
   const [materialConfig, setMaterialConfig] = useState<MaterialConfig>(DEFAULT_MATERIAL_CONFIG);
   const [stringConfig, setStringConfig] = useState<StringConfig>(DEFAULT_STRING_CONFIG);
   const [spacingConfig, setSpacingConfig] = useState<SpacingConfig>(DEFAULT_SPACING_CONFIG);
   const [marginConfig, setMarginConfig] = useState<MarginConfig>(DEFAULT_MARGIN_CONFIG);
+
+  // Persist to localStorage on change
+  useEffect(() => { saveModules(modules); }, [modules]);
+  useEffect(() => { saveSelectedId(selectedModuleId); }, [selectedModuleId]);
 
   const selectedModule = modules.find((m) => m.id === selectedModuleId) ?? null;
 
