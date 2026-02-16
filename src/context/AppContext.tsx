@@ -56,6 +56,7 @@ interface AppActions {
   updateStringConfig: (updates: Partial<StringConfig>) => void;
   updateSpacingConfig: (updates: Partial<SpacingConfig>) => void;
   updateMarginConfig: (updates: Partial<MarginConfig>) => void;
+  importModules: (modules: SolarModule[]) => void;
 }
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
@@ -234,6 +235,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMarginConfig((prev) => ({ ...prev, ...updates }));
   }, []);
 
+  const importModules = useCallback((imported: SolarModule[]) => {
+    const recomputed = imported.map(recompute);
+    setModules(recomputed);
+    setSelectedModuleId(recomputed.length > 0 ? recomputed[0].id : null);
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -261,6 +268,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateStringConfig,
         updateSpacingConfig,
         updateMarginConfig,
+        importModules,
       }}
     >
       {children}

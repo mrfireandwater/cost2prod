@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import type { SolarModule, SubmoduleConfig, SubmoduleRotation, ModuleShape } from '../../models/solarModule';
 import {
@@ -464,18 +465,74 @@ function ModuleForm({ module }: { module: SolarModule }) {
 }
 
 export default function ModuleDesigner() {
-  const { modules, selectedModuleId, addModule, removeModule, selectModule } = useAppContext();
+  const { modules, selectedModuleId, addModule, removeModule, selectModule, importModules } = useAppContext();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = () => {
+    const json = JSON.stringify(modules, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cost2prod-modules.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result as string);
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          alert('Invalid file: expected a non-empty array of modules.');
+          return;
+        }
+        importModules(parsed as SolarModule[]);
+      } catch {
+        alert('Failed to parse JSON file.');
+      }
+    };
+    reader.readAsText(file);
+    // Reset so the same file can be re-imported
+    e.target.value = '';
+  };
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
         <h2 className="text-sm font-bold text-slate-700">Module Designer</h2>
-        <button
-          onClick={addModule}
-          className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
-        >
-          + Add Module
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200"
+            title="Import modules from JSON"
+          >
+            Import
+          </button>
+          <button
+            onClick={handleExport}
+            className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200"
+            title="Export modules as JSON"
+          >
+            Export
+          </button>
+          <button
+            onClick={addModule}
+            className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+          >
+            + Add Module
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImport}
+          />
+        </div>
       </div>
 
       {/* Module tabs */}
