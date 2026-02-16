@@ -193,7 +193,7 @@ function CostOptimizationBar({ ratio, delta }: { ratio: number; delta: number })
 
 // ── Main module form ──
 function ModuleForm({ module }: { module: SolarModule }) {
-  const { updateModule, totalCost, optimalCost, costOptimizationDelta, costOptimizationRatio } = useAppContext();
+  const { updateModule, totalCost, optimalCost, costOptimizationDelta, costOptimizationRatio, quantityCostCurve } = useAppContext();
   const id = module.id;
   const update = (updates: Partial<SolarModule>) => updateModule(id, updates);
 
@@ -534,6 +534,32 @@ function ModuleForm({ module }: { module: SolarModule }) {
             <hr className="border-slate-200 my-1" />
             <div className="text-[10px] font-semibold text-slate-600 mb-1">Cost Optimization</div>
             <CostOptimizationBar ratio={costOptimizationRatio} delta={costOptimizationDelta} />
+
+            {/* Quantity cost table */}
+            {quantityCostCurve.length > 0 && (
+              <>
+                <hr className="border-slate-200 my-1" />
+                <div className="text-[10px] font-semibold text-slate-600 mb-1">Production Cost by Quantity</div>
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="text-slate-400">
+                      <th className="text-left py-0.5">Qty</th>
+                      <th className="text-right py-0.5">CHF/Unit</th>
+                      <th className="text-right py-0.5">Total CHF</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quantityCostCurve.map((pt) => (
+                      <tr key={pt.quantity} className="border-t border-slate-100">
+                        <td className="py-0.5">{pt.quantity}</td>
+                        <td className="py-0.5 text-right font-medium">{pt.costPerUnit.toFixed(2)}</td>
+                        <td className="py-0.5 text-right text-slate-400">{(pt.costPerUnit * pt.quantity).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
           </div>
         </div>
       </fieldset>

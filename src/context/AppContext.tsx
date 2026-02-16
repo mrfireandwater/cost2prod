@@ -71,12 +71,31 @@ const AppContext = createContext<(AppState & AppActions) | null>(null);
 const STORAGE_KEY_MODULES = 'cost2prod-modules';
 const STORAGE_KEY_SELECTED = 'cost2prod-selected-module';
 
+/** Backfill missing fields on modules loaded from localStorage (schema migration) */
+function migrateModule(m: Partial<SolarModule>): SolarModule {
+  const defaults = createDefaultModule(m.id ?? '', m.name ?? 'Module');
+  return {
+    ...defaults,
+    ...m,
+    // Ensure new submodule fields exist
+    quantity: m.quantity ?? 1,
+    submodule3Enabled: m.submodule3Enabled ?? false,
+    submodule3: m.submodule3 ?? defaults.submodule3,
+    submodule4Enabled: m.submodule4Enabled ?? false,
+    submodule4: m.submodule4 ?? defaults.submodule4,
+    submodule5Enabled: m.submodule5Enabled ?? false,
+    submodule5: m.submodule5 ?? defaults.submodule5,
+  };
+}
+
 function loadModules(): SolarModule[] | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_MODULES);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed as SolarModule[];
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((m: Partial<SolarModule>) => migrateModule(m));
+    }
   } catch { /* ignore corrupt data */ }
   return null;
 }
@@ -117,7 +136,7 @@ function recompute(m: SolarModule): SolarModule {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [modules, setModules] = useState<SolarModule[]>(() => {
     const saved = loadModules();
-    if (saved) return saved;
+    if (saved) return saved.map(recompute);
     return [createDefaultModule(uuidv4(), 'Module 1')];
   });
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(() => {
@@ -259,9 +278,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const importModules = useCallback((imported: SolarModule[]) => {
-    const recomputed = imported.map(recompute);
-    setModules(recomputed);
-    setSelectedModuleId(recomputed.length > 0 ? recomputed[0].id : null);
+    const migrated = imported.map((m) => recompute(migrateModule(m)));
+    setModules(migrated);
+    setSelectedModuleId(migrated.length > 0 ? migrated[0].id : null);
   }, []);
 
   return (
